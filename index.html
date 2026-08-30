@@ -254,7 +254,31 @@
   }
   .btn-block:active{transform:scale(.97);}
   .btn-block:disabled{opacity:.4;}
+  .btn-block.outline-btn{
+    background:var(--card);
+    color:var(--ink);
+    border:2px solid var(--ink);
+    box-shadow:none;
+  }
   .form-spacer{flex:1;}
+  .storage-card{
+    background:var(--card);
+    border-radius:var(--radius-sm);
+    padding:16px;
+    border:1.5px solid var(--line);
+    margin-bottom:18px;
+  }
+  .storage-row{
+    display:flex; justify-content:space-between; align-items:center;
+    font-size:14.5px; font-weight:600;
+  }
+  .storage-bar{
+    height:8px; border-radius:999px;
+    background:var(--line-soft);
+    margin-top:12px;
+    overflow:hidden;
+  }
+  .storage-bar-fill{height:100%; background:var(--ink); border-radius:999px;}
 
   /* ---------- photos step ---------- */
   .hint{
@@ -339,6 +363,72 @@
   }
 
   /* ---------- review list ---------- */
+  .search-input{
+    width:100%;
+    background:var(--card);
+    border:1.5px solid var(--line);
+    border-radius:var(--radius-sm);
+    padding:14px 16px;
+    font-size:16px;
+    color:var(--ink);
+    font-family:inherit;
+    margin-bottom:14px;
+    min-height:50px;
+  }
+  .search-input:focus{outline:2px solid var(--ink); outline-offset:1px;}
+  .topbar-actions{display:flex; gap:8px; flex-shrink:0;}
+  .topbar-btn{
+    border:1.5px solid var(--line);
+    background:var(--card);
+    color:var(--ink);
+    font-weight:700;
+    font-size:14px;
+    padding:9px 14px;
+    border-radius:999px;
+    box-shadow:var(--shadow);
+    flex-shrink:0;
+    transition:transform .1s ease;
+  }
+  .topbar-btn:active{transform:scale(.93);}
+  .topbar-btn.star-on{border-color:#C79A44; background:#C79A44; color:#fff;}
+  .sheet-backdrop{
+    position:fixed; inset:0;
+    background:rgba(10,10,11,.45);
+    z-index:800;
+    display:flex; align-items:flex-end;
+    animation:fadeIn .18s ease;
+  }
+  .sort-sheet{
+    width:100%;
+    background:var(--paper);
+    border-radius:26px 26px 0 0;
+    padding:12px 20px calc(var(--safe-bottom) + 22px);
+    box-shadow:0 -8px 30px rgba(0,0,0,.2);
+  }
+  .sheet-handle{
+    width:40px; height:5px; border-radius:999px;
+    background:var(--line);
+    margin:6px auto 14px;
+  }
+  .sheet-title{
+    font-size:13px; font-weight:700;
+    text-transform:uppercase; letter-spacing:.06em;
+    color:var(--ink-soft);
+    margin-bottom:10px;
+  }
+  .sort-option{
+    width:100%;
+    display:flex; align-items:center; justify-content:space-between;
+    background:var(--card);
+    border:1.5px solid var(--line);
+    border-radius:14px;
+    padding:15px 16px;
+    font-size:16px; font-weight:600;
+    color:var(--ink);
+    margin-bottom:10px;
+  }
+  .sort-option.active{border-color:var(--ink); background:var(--ink); color:var(--paper);}
+  .sort-check{font-weight:800;}
   .filter-row{display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;}
   .filter-chip{
     padding:10px 16px;
@@ -352,6 +442,8 @@
   }
   .filter-chip:active{transform:scale(.94);}
   .filter-chip.on{color:#fff; border-color:var(--ink); background:var(--ink);}
+  .filter-chip.star-chip{border-color:#C79A44; color:#C79A44;}
+  .filter-chip.star-chip-on{background:#C79A44; border-color:#C79A44; color:#fff;}
   .paper-list{display:flex; flex-direction:column; gap:12px; overflow-y:auto;}
   .paper-card{
     display:flex; gap:14px;
@@ -366,12 +458,22 @@
     transition:transform .1s ease;
   }
   .paper-card:active{transform:scale(.97);}
+  .paper-thumb-wrap{position:relative; flex-shrink:0;}
   .paper-thumb{
     width:64px; height:82px;
     border-radius:11px;
     object-fit:cover;
     background:var(--line-soft);
-    flex-shrink:0;
+    display:block;
+  }
+  .fav-flag{
+    position:absolute; top:-6px; right:-6px;
+    width:22px; height:22px;
+    background:#C79A44; color:#fff;
+    border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:12px;
+    box-shadow:0 2px 5px rgba(0,0,0,.25);
   }
   .paper-info{min-width:0; flex:1;}
   .paper-title{font-size:16.5px; font-weight:700; letter-spacing:-.01em; line-height:1.25;}
@@ -468,6 +570,7 @@
 <body>
 <div id="app"></div>
 <input type="file" id="file-input" accept="image/*" multiple style="display:none">
+<input type="file" id="backup-file-input" accept="application/json,.json" style="display:none">
 <script>
 /* ============================== constants ============================== */
 const TAB_COLORS = ['#3E7A73','#B5563C','#C79A44','#7A4E6D','#3E5C8A','#7A8B4E','#C06B5C','#5C6B7A'];
@@ -475,6 +578,34 @@ const MISC = { id:'misc', name:'Misc', color:'#6B6B6B', builtin:true };
 const MAX_CLASSES = 8;
 const KIND_COLORS = { quiz:'#3E5C8A', test:'#C79A44', exam:'#B23A2E' };
 const KIND_LABELS = { quiz:'Quiz', test:'Test', exam:'Exam' };
+const SORT_OPTIONS = [
+  {key:'unit-desc', label:'Unit: High to Low'},
+  {key:'unit-asc', label:'Unit: Low to High'},
+  {key:'date-desc', label:'Date: Newest First'},
+  {key:'date-asc', label:'Date: Oldest First'},
+  {key:'title-asc', label:'Title: A to Z'}
+];
+function sortPapers(list, sortKey){
+  const arr = list.slice();
+  arr.sort((a,b)=>{
+    switch(sortKey){
+      case 'unit-asc':{
+        const ua=(a.unit==null?9999:a.unit), ub=(b.unit==null?9999:b.unit);
+        return ua-ub;
+      }
+      case 'date-desc': return new Date(b.date)-new Date(a.date);
+      case 'date-asc': return new Date(a.date)-new Date(b.date);
+      case 'title-asc': return a.title.localeCompare(b.title);
+      case 'unit-desc':
+      default:{
+        const ua=(a.unit==null?-1:a.unit), ub=(b.unit==null?-1:b.unit);
+        if (ub!==ua) return ub-ua;
+        return new Date(b.date)-new Date(a.date);
+      }
+    }
+  });
+  return arr;
+}
 
 function typeChip(kind, label, d){
   const on = d.kind===kind;
@@ -545,9 +676,17 @@ const state = {
   deleteMode:false,
   reviewList:[],
   reviewFilter:new Set(),
+  reviewFavoritesOnly:false,
+  reviewSearch:'',
+  reviewSort:'unit-desc',
+  sortSheetOpen:false,
   reviewPaper:null,
   zoomBlob:null,
-  activeObjectUrls:[]
+  activeObjectUrls:[],
+  storageUsage:null,
+  storageQuota:null,
+  backupBusy:false,
+  backupBusyLabel:''
 };
 
 function allClasses(){
@@ -576,7 +715,27 @@ async function boot(){
   state.classes = await dbGetAll('classes');
   state.classes.sort((a,b)=>a.order-b.order);
   state.papers = await dbGetAll('papers');
+  refreshStorageEstimate();
   goHome();
+}
+
+function formatBytes(bytes){
+  if (bytes==null) return '—';
+  if (bytes < 1024) return bytes + ' B';
+  const units = ['KB','MB','GB','TB'];
+  let val = bytes, i=-1;
+  do { val/=1024; i++; } while (val>=1024 && i<units.length-1);
+  return val.toFixed(val<10?1:0) + ' ' + units[i];
+}
+
+async function refreshStorageEstimate(){
+  if (!(navigator.storage && navigator.storage.estimate)) return;
+  try{
+    const est = await navigator.storage.estimate();
+    state.storageUsage = est.usage;
+    state.storageQuota = est.quota;
+    if (state.view==='home' || state.view==='backup') render();
+  }catch(err){ /* not available, ignore */ }
 }
 
 function goHome(){
@@ -586,6 +745,7 @@ function goHome(){
   state.selectedClassId=null;
   state.draftPaper=null;
   state.deleteMode=false;
+  state.sortSheetOpen=false;
   render();
 }
 
@@ -626,12 +786,15 @@ function render(){
     photos:renderPhotos,
     reviewList:renderReviewList,
     paperDetail:renderPaperDetail,
-    manage:renderManage
+    editPaper:renderEditPaper,
+    manage:renderManage,
+    backup:renderBackup
   };
   app.innerHTML = '';
   const el = views[state.view]();
   app.appendChild(el);
   if (state.zoomBlob) app.appendChild(renderZoom());
+  if (state.sortSheetOpen) app.appendChild(renderSortSheet());
 }
 
 function h(tag, attrs={}, children=[]){
@@ -654,11 +817,17 @@ function h(tag, attrs={}, children=[]){
   return el;
 }
 
-function topbar(title, onBack, tabColor){
+function topbar(title, onBack, tabColor, rightEls){
   const bar = h('div',{class:'topbar'});
   if (onBack) bar.appendChild(h('button',{class:'back-btn', onclick:onBack}, '‹'));
   if (tabColor) bar.appendChild(h('span',{class:'tab-dot', style:`background:${tabColor}`}));
   bar.appendChild(h('div',{class:'topbar-title'}, title));
+  if (rightEls){
+    const arr = Array.isArray(rightEls) ? rightEls : [rightEls];
+    const actions = h('div',{class:'topbar-actions'});
+    arr.forEach(e=>actions.appendChild(e));
+    bar.appendChild(actions);
+  }
   return bar;
 }
 
@@ -667,7 +836,7 @@ function renderHome(){
   const screen = h('div',{class:'screen home'});
   screen.appendChild(h('div',{class:'home-header'},[
     h('div',{class:'home-title'},'My Digital Binder'),
-    h('div',{class:'home-sub mono'}, `${state.classes.length} classes · ${state.papers.length} papers`)
+    h('div',{class:'home-sub mono'}, `${state.classes.length} classes · ${state.papers.length} papers${state.storageUsage!=null? ' · '+formatBytes(state.storageUsage)+' used' : ''}`)
   ]));
   screen.appendChild(h('button',{class:'pill-primary', onclick:()=>startFlow('add')},[
     h('span',{class:'pill-icon'},'＋'), h('span',{},'Add Papers')
@@ -677,7 +846,8 @@ function renderHome(){
   ]));
   screen.appendChild(h('div',{class:'home-footer'},[
     h('button',{class:'text-btn', onclick:()=>{state.view='manage'; state.manageTab='add'; render();}},'Add Class'),
-    h('button',{class:'text-btn danger', onclick:()=>{state.view='manage'; state.manageTab='remove'; render();}},'Remove Class')
+    h('button',{class:'text-btn danger', onclick:()=>{state.view='manage'; state.manageTab='remove'; render();}},'Remove Class'),
+    h('button',{class:'text-btn', onclick:()=>{state.view='backup'; refreshStorageEstimate(); render();}},'Backup')
   ]));
   return screen;
 }
@@ -724,14 +894,11 @@ function selectClass(classId){
     state.draftPaper = { title:'', date:now.toISOString().slice(0,16), unit:false, unitNum:'', unitName:'', kindOn:false, kind:null, pages:[] };
     state.view = 'paperForm';
   } else {
-    const list = state.papers.filter(p=>p.classId===classId).slice();
-    list.sort((a,b)=>{
-      const ua = (a.unit==null? -1 : a.unit), ub = (b.unit==null? -1 : b.unit);
-      if (ub!==ua) return ub-ua;
-      return new Date(b.date) - new Date(a.date);
-    });
-    state.reviewList = list;
+    state.reviewList = state.papers.filter(p=>p.classId===classId);
     state.reviewFilter = new Set();
+    state.reviewFavoritesOnly = false;
+    state.reviewSearch = '';
+    state.sortSheetOpen = false;
     state.view = 'reviewList';
   }
   render();
@@ -932,10 +1099,12 @@ async function savePaper(){
     unit: d.unit && d.unitNum!=='' ? Number(d.unitNum) : null,
     unitName: d.unit ? (d.unitName.trim() || null) : null,
     kind: d.kindOn ? d.kind : null,
+    favorite: false,
     pages: d.pages
   };
   await dbPut('papers', paper);
   state.papers.push(paper);
+  refreshStorageEstimate();
   goHome();
 }
 
@@ -950,24 +1119,113 @@ function renderZoom(){
   ]);
 }
 
-/* ============================== REVIEW LIST ============================== */
+async function toggleFavorite(paper){
+  paper.favorite = !paper.favorite;
+  await dbPut('papers', paper);
+  render();
+}
+
+/* ============================== EDIT PAPER ============================== */
+function openEditPaper(paper){
+  state.editDraft = {
+    id: paper.id,
+    title: paper.title,
+    date: (()=>{ const d=new Date(paper.date); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,16); })(),
+    unit: paper.unit!=null,
+    unitNum: paper.unit!=null ? String(paper.unit) : '',
+    unitName: paper.unitName || '',
+    kindOn: !!paper.kind,
+    kind: paper.kind || null
+  };
+  state.view = 'editPaper';
+  render();
+}
+
+function renderEditPaper(){
+  const cls = classById(state.reviewPaper.classId);
+  const d = state.editDraft;
+  const screen = h('div',{class:'screen'});
+  screen.appendChild(topbar('Edit Paper', ()=>{state.view='paperDetail'; render();}, cls.color));
+
+  screen.appendChild(h('div',{class:'field'},[
+    h('label',{class:'field-label'},'Title'),
+    h('input',{type:'text', value:d.title, oninput:e=>d.title=e.target.value})
+  ]));
+  screen.appendChild(h('div',{class:'field'},[
+    h('label',{class:'field-label'},'Date & time'),
+    h('input',{type:'datetime-local', value:d.date, oninput:e=>d.date=e.target.value})
+  ]));
+  screen.appendChild(h('div',{class:'field'},[
+    h('label',{class:'field-label'},'Unit'),
+    h('div',{class:'switch-row'},[
+      h('span',{class:'switch-label'},'Add a unit number?'),
+      h('button',{class:'switch'+(d.unit?' on':''), onclick:()=>{d.unit=!d.unit; render();}})
+    ])
+  ]));
+  if (d.unit){
+    screen.appendChild(h('div',{class:'unit-extra'},[
+      h('input',{type:'number', inputmode:'numeric', placeholder:'Unit number', value:d.unitNum, oninput:e=>d.unitNum=e.target.value}),
+      h('input',{type:'text', placeholder:'Unit name (optional)', value:d.unitName, oninput:e=>d.unitName=e.target.value})
+    ]));
+  }
+  screen.appendChild(h('div',{class:'field'},[
+    h('div',{class:'switch-row'},[
+      h('span',{class:'switch-label'},'Quiz, test, or exam?'),
+      h('button',{class:'switch'+(d.kindOn?' on':''), onclick:()=>{d.kindOn=!d.kindOn; if(!d.kindOn) d.kind=null; render();}})
+    ])
+  ]));
+  if (d.kindOn){
+    screen.appendChild(h('div',{class:'type-chip-row'},[
+      typeChip('quiz','Quiz',d), typeChip('test','Test',d), typeChip('exam','Exam',d)
+    ]));
+  }
+
+  screen.appendChild(h('div',{class:'form-spacer'}));
+  screen.appendChild(h('button',{class:'btn-block', onclick:saveEditPaper}, 'Save Changes'));
+  return screen;
+}
+
+async function saveEditPaper(){
+  const d = state.editDraft;
+  const paper = state.papers.find(p=>p.id===d.id);
+  if (!paper) { state.view='reviewList'; render(); return; }
+  paper.title = d.title.trim() || 'Untitled paper';
+  paper.date = new Date(d.date).toISOString();
+  paper.unit = d.unit && d.unitNum!=='' ? Number(d.unitNum) : null;
+  paper.unitName = d.unit ? (d.unitName.trim() || null) : null;
+  paper.kind = d.kindOn ? d.kind : null;
+  await dbPut('papers', paper);
+  state.reviewPaper = paper;
+  state.view = 'paperDetail';
+  render();
+}
 function renderReviewList(){
   const cls = classById(state.selectedClassId);
   const screen = h('div',{class:'screen'});
-  screen.appendChild(topbar(cls.name, ()=>{state.view='classSelect'; render();}, cls.color));
+  const sortBtn = h('button',{class:'topbar-btn', onclick:()=>{state.sortSheetOpen=true; render();}},[
+    h('span',{},'⇅ Sort')
+  ]);
+  screen.appendChild(topbar(cls.name, ()=>{state.view='classSelect'; render();}, cls.color, [sortBtn]));
 
   if (!state.reviewList.length){
     screen.appendChild(h('div',{class:'empty-note'}, `No papers saved for ${cls.name} yet.`));
     return screen;
   }
 
+  screen.appendChild(h('input',{
+    type:'text', class:'search-input', placeholder:'Search titles…',
+    value: state.reviewSearch,
+    oninput:e=>{ state.reviewSearch = e.target.value; render(); }
+  }));
+
   const hasAnyKind = state.reviewList.some(p=>p.kind);
+  const noFilters = state.reviewFilter.size===0 && !state.reviewFavoritesOnly;
+  const filterRow = h('div',{class:'filter-row'});
+  filterRow.appendChild(h('button',{
+    class:'filter-chip'+(noFilters?' on':''),
+    onclick:()=>{ state.reviewFilter = new Set(); state.reviewFavoritesOnly=false; render(); }
+  }, 'All'));
   if (hasAnyKind){
-    const filterRow = h('div',{class:'filter-row'});
-    filterRow.appendChild(h('button',{
-      class:'filter-chip'+(state.reviewFilter.size===0?' on':''),
-      onclick:()=>{ state.reviewFilter = new Set(); render(); }
-    }, 'All'));
     ['quiz','test','exam'].forEach(kind=>{
       const on = state.reviewFilter.has(kind);
       filterRow.appendChild(h('button',{
@@ -979,22 +1237,34 @@ function renderReviewList(){
         }
       }, KIND_LABELS[kind]+'s'));
     });
-    screen.appendChild(filterRow);
   }
+  filterRow.appendChild(h('button',{
+    class:'filter-chip'+(state.reviewFavoritesOnly?' on star-chip-on':' star-chip'),
+    onclick:()=>{ state.reviewFavoritesOnly = !state.reviewFavoritesOnly; render(); }
+  }, '★ Favorites'));
+  screen.appendChild(filterRow);
 
-  const filtered = state.reviewFilter.size===0
-    ? state.reviewList
-    : state.reviewList.filter(p=>state.reviewFilter.has(p.kind));
+  let list = state.reviewList;
+  if (state.reviewFavoritesOnly) list = list.filter(p=>p.favorite);
+  if (state.reviewFilter.size>0) list = list.filter(p=>state.reviewFilter.has(p.kind));
+  if (state.reviewSearch.trim()) {
+    const q = state.reviewSearch.trim().toLowerCase();
+    list = list.filter(p=>p.title.toLowerCase().includes(q));
+  }
+  const filtered = sortPapers(list, state.reviewSort);
 
   if (!filtered.length){
-    screen.appendChild(h('div',{class:'empty-note'}, `No ${[...state.reviewFilter].map(k=>KIND_LABELS[k]+'s').join(' or ')} saved for ${cls.name} yet.`));
+    screen.appendChild(h('div',{class:'empty-note'}, 'No papers match your search or filters.'));
     return screen;
   }
 
-  const list = h('div',{class:'paper-list'});
+  const listEl = h('div',{class:'paper-list'});
   filtered.forEach(p=>{
     const row = h('button',{class:'paper-card', onclick:()=>openPaperDetail(p)},[
-      h('img',{class:'paper-thumb', src: urlFor(p.pages[0].blob)}),
+      h('div',{class:'paper-thumb-wrap'},[
+        h('img',{class:'paper-thumb', src: urlFor(p.pages[0].blob)}),
+        p.favorite ? h('span',{class:'fav-flag'},'★') : null
+      ]),
       h('div',{class:'paper-info'},[
         h('div',{class:'paper-title'}, p.title),
         h('div',{class:'paper-meta-row'},[
@@ -1004,10 +1274,30 @@ function renderReviewList(){
         ])
       ])
     ]);
-    list.appendChild(row);
+    listEl.appendChild(row);
   });
-  screen.appendChild(list);
+  screen.appendChild(listEl);
   return screen;
+}
+
+function renderSortSheet(){
+  const backdrop = h('div',{class:'sheet-backdrop', onclick:()=>{state.sortSheetOpen=false; render();}});
+  const sheet = h('div',{class:'sort-sheet'},[
+    h('div',{class:'sheet-handle'}),
+    h('div',{class:'sheet-title'},'Sort papers by')
+  ]);
+  SORT_OPTIONS.forEach(opt=>{
+    const active = state.reviewSort===opt.key;
+    sheet.appendChild(h('button',{
+      class:'sort-option'+(active?' active':''),
+      onclick:()=>{ state.reviewSort=opt.key; state.sortSheetOpen=false; render(); }
+    },[
+      h('span',{},opt.label),
+      active ? h('span',{class:'sort-check'},'✓') : null
+    ]));
+  });
+  backdrop.appendChild(sheet);
+  return backdrop;
 }
 
 function formatDate(iso){
@@ -1026,7 +1316,10 @@ function renderPaperDetail(){
   const cls = classById(state.selectedClassId);
   const p = state.reviewPaper;
   const screen = h('div',{class:'screen'});
-  screen.appendChild(topbar(p.title, ()=>{state.view='reviewList'; render();}, cls.color));
+  screen.appendChild(topbar(p.title, ()=>{state.view='reviewList'; render();}, cls.color, [
+    h('button',{class:'topbar-btn'+(p.favorite?' star-on':''), onclick:()=>toggleFavorite(p)}, p.favorite?'★':'☆'),
+    h('button',{class:'topbar-btn', onclick:()=>openEditPaper(p)}, '✎ Edit')
+  ]));
 
   const metaRow = h('div',{class:'detail-meta-row'});
   const badge = kindBadge(p.kind);
@@ -1084,6 +1377,119 @@ async function shareAllPages(paper){
   }
   alert("Your browser can't share multiple images at once — use the Save button under each page instead.");
 }
+
+/* ============================== BACKUP ============================== */
+function renderBackup(){
+  const screen = h('div',{class:'screen'});
+  screen.appendChild(topbar('Backup Data', goHome));
+
+  screen.appendChild(h('div',{class:'hint'}, 'Your papers live only on this device. Export a backup file now and then — especially before switching phones — and keep it somewhere safe like iCloud Drive or Files.'));
+
+  if (state.storageUsage!=null){
+    const pct = state.storageQuota ? Math.min(100, (state.storageUsage/state.storageQuota*100)) : null;
+    screen.appendChild(h('div',{class:'storage-card'},[
+      h('div',{class:'storage-row'},[
+        h('span',{},'Storage used'),
+        h('span',{class:'mono'}, formatBytes(state.storageUsage) + (state.storageQuota? ' of '+formatBytes(state.storageQuota) : ''))
+      ]),
+      pct!=null ? h('div',{class:'storage-bar'},[
+        h('div',{class:'storage-bar-fill', style:`width:${pct}%;`})
+      ]) : null
+    ]));
+  }
+
+  screen.appendChild(h('button',{class:'btn-block', style:'margin-top:8px;', disabled: state.backupBusy?true:undefined, onclick:exportBackup},
+    state.backupBusy && state.backupBusyLabel==='export' ? 'Preparing backup…' : 'Export Backup'));
+  screen.appendChild(h('button',{class:'btn-block outline-btn', style:'margin-top:12px;', disabled: state.backupBusy?true:undefined, onclick:()=>document.getElementById('backup-file-input').click()},
+    state.backupBusy && state.backupBusyLabel==='import' ? 'Importing…' : 'Import Backup'));
+  screen.appendChild(h('div',{class:'form-spacer'}));
+  return screen;
+}
+
+function blobToDataURL(blob){
+  return new Promise((resolve,reject)=>{
+    const reader = new FileReader();
+    reader.onload = ()=>resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+function dataURLToBlob(dataUrl){
+  return fetch(dataUrl).then(r=>r.blob());
+}
+
+async function exportBackup(){
+  state.backupBusy = true; state.backupBusyLabel='export'; render();
+  try{
+    const papersOut = [];
+    for (const p of state.papers){
+      const pages = [];
+      for (const pg of p.pages){
+        pages.push({id:pg.id, dataUrl: await blobToDataURL(pg.blob)});
+      }
+      papersOut.push({...p, pages});
+    }
+    const payload = {version:1, exportedAt:new Date().toISOString(), classes:state.classes, papers:papersOut};
+    const json = JSON.stringify(payload);
+    const blob = new Blob([json], {type:'application/json'});
+    const filename = `digital-binder-backup-${new Date().toISOString().slice(0,10)}.json`;
+    let shared = false;
+    try{
+      const file = new File([blob], filename, {type:'application/json'});
+      if (navigator.canShare && navigator.canShare({files:[file]})){
+        await navigator.share({files:[file]});
+        shared = true;
+      }
+    }catch(err){ if (err.name==='AbortError'){ shared = true; } }
+    if (!shared){
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 30000);
+    }
+  }catch(err){
+    console.error(err);
+    alert('Something went wrong preparing the backup.');
+  }
+  state.backupBusy = false; state.backupBusyLabel='';
+  refreshStorageEstimate();
+  render();
+}
+
+async function importBackup(file){
+  if (!confirm('Import this backup? Matching classes and papers will be added or overwritten.')) return;
+  state.backupBusy = true; state.backupBusyLabel='import'; render();
+  try{
+    const text = await file.text();
+    const payload = JSON.parse(text);
+    if (!payload || !Array.isArray(payload.classes) || !Array.isArray(payload.papers)) throw new Error('bad format');
+    for (const c of payload.classes) await dbPut('classes', c);
+    for (const p of payload.papers){
+      const pages = [];
+      for (const pg of p.pages) pages.push({id:pg.id, blob: await dataURLToBlob(pg.dataUrl)});
+      await dbPut('papers', {...p, pages, favorite: !!p.favorite});
+    }
+    state.classes = await dbGetAll('classes');
+    state.classes.sort((a,b)=>a.order-b.order);
+    state.papers = await dbGetAll('papers');
+    state.backupBusy = false; state.backupBusyLabel='';
+    refreshStorageEstimate();
+    render();
+    alert('Backup imported.');
+  }catch(err){
+    console.error(err);
+    state.backupBusy = false; state.backupBusyLabel='';
+    render();
+    alert("Couldn't import that file — make sure it's a Digital Binder backup.");
+  }
+}
+
+document.getElementById('backup-file-input').addEventListener('change', (e)=>{
+  const file = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (file) importBackup(file);
+});
 
 /* ============================== MANAGE CLASSES ============================== */
 function renderManage(){
