@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<title>My Digital Binder</title>
+<style>
+  :root{
+    --paper:#F3F1EB;
+    --card:#FFFFFF;
+    --ink:#1E2124;
+    --ink-soft:#6B6F76;
+    --ink-faint:#9A9D9F;
+    --line:#E4E0D4;
+    --line-soft:#ECE9DF;
+    --misc:#6B6B6B;
+    --danger:#B23A2E;
+    --danger-soft:#F3E2DF;
+    --radius-pill:999px;
+    --radius-card:20px;
+    --radius-sm:12px;
+    --shadow:0 1px 2px rgba(30,33,36,.06), 0 10px 24px rgba(30,33,36,.07);
+    --safe-top:env(safe-area-inset-top,0px);
+    --safe-bottom:env(safe-area-inset-bottom,0px);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+    overscroll-behavior-y:none;
+    -webkit-user-select:none;
+    user-select:none;
+  }
+  input,textarea{-webkit-user-select:text; user-select:text;}
+  .mono{font-family:ui-monospace,"SF Mono",Menlo,monospace; letter-spacing:.01em;}
+  #app{
+    min-height:100vh;
+    min-height:100dvh;
+    display:flex;
+    flex-direction:column;
+    padding-top:calc(var(--safe-top) + 14px);
+    padding-bottom:calc(var(--safe-bottom) + 14px);
+  }
+  .screen{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    padding:0 20px;
+    animation:fadeIn .22s ease;
+  }
+  @keyframes fadeIn{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
+
+  /* ---------- top bar ---------- */
+  .topbar{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    min-height:40px;
+    margin-bottom:18px;
+  }
+  .back-btn{
+    width:34px; height:34px;
+    display:flex; align-items:center; justify-content:center;
+    border-radius:50%;
+    background:var(--card);
+    box-shadow:var(--shadow);
+    font-size:19px;
+    color:var(--ink);
+    border:none;
+    flex-shrink:0;
+  }
+  .topbar-title{
+    font-size:19px;
+    font-weight:700;
+    letter-spacing:-.01em;
+    flex:1;
+    min-width:0;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .tab-dot{
+    width:10px; height:10px; border-radius:50%;
+    flex-shrink:0;
+  }
+
+  /* ---------- home ---------- */
+  .home{justify-content:center; gap:14px;}
+  .home-header{text-align:center; margin-bottom:8px;}
+  .home-title{font-size:26px; font-weight:800; letter-spacing:-.02em;}
+  .home-sub{font-size:12.5px; color:var(--ink-faint); margin-top:6px;}
+  .pill-primary{
+    height:96px;
+    border-radius:var(--radius-pill);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:12px;
+    font-size:21px;
+    font-weight:700;
+    letter-spacing:-.01em;
+    border:none;
+    box-shadow:var(--shadow);
+    background:var(--ink);
+    color:var(--paper);
+    transition:transform .12s ease;
+  }
+  .pill-primary.outline{
+    background:var(--card);
+    color:var(--ink);
+    border:1.5px solid var(--ink);
+  }
+  .pill-primary:active{transform:scale(.97);}
+  .pill-icon{font-size:22px; line-height:1;}
+  .home-footer{
+    display:flex; justify-content:center; gap:26px;
+    margin-top:20px;
+  }
+  .text-btn{
+    background:none; border:none;
+    color:var(--ink-soft);
+    font-size:14px; font-weight:600;
+    padding:8px 4px;
+  }
+  .text-btn.danger{color:var(--danger);}
+
+  /* ---------- class grid ---------- */
+  .class-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px;
+  }
+  .class-pill{
+    background:var(--card);
+    border-radius:var(--radius-card);
+    box-shadow:var(--shadow);
+    padding:18px 14px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    border:none;
+    text-align:left;
+    min-height:78px;
+  }
+  .class-pill:active{transform:scale(.97);}
+  .class-pill .tab-dot{width:14px; height:14px;}
+  .class-pill-name{
+    font-size:15.5px;
+    font-weight:700;
+    letter-spacing:-.01em;
+    line-height:1.2;
+  }
+  .class-pill-meta{font-size:11.5px; color:var(--ink-faint);}
+  .empty-note{
+    text-align:center;
+    color:var(--ink-soft);
+    font-size:14.5px;
+    line-height:1.5;
+    margin-top:40px;
+    padding:0 10px;
+  }
+
+  /* ---------- forms ---------- */
+  .field{margin-bottom:18px;}
+  .field-label{
+    font-size:12.5px;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:var(--ink-soft);
+    margin-bottom:8px;
+    display:block;
+  }
+  .field input[type=text],
+  .field input[type=number],
+  .field input[type=datetime-local]{
+    width:100%;
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:var(--radius-sm);
+    padding:14px 15px;
+    font-size:16px;
+    color:var(--ink);
+    font-family:inherit;
+  }
+  .field input:focus{outline:2px solid var(--ink); outline-offset:1px;}
+  .switch-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    background:var(--card);
+    border-radius:var(--radius-sm);
+    padding:14px 15px;
+    border:1px solid var(--line);
+  }
+  .switch-label{font-size:15.5px; font-weight:600;}
+  .switch{
+    width:48px; height:28px; border-radius:999px;
+    background:var(--line);
+    position:relative;
+    border:none;
+    flex-shrink:0;
+  }
+  .switch.on{background:var(--ink);}
+  .switch::after{
+    content:"";
+    position:absolute; top:3px; left:3px;
+    width:22px; height:22px; border-radius:50%;
+    background:#fff;
+    transition:transform .16s ease;
+    box-shadow:0 1px 3px rgba(0,0,0,.25);
+  }
+  .switch.on::after{transform:translateX(20px);}
+  .unit-extra{margin-top:12px; display:flex; flex-direction:column; gap:12px;}
+  .btn-block{
+    width:100%;
+    padding:17px;
+    border-radius:var(--radius-pill);
+    border:none;
+    font-size:17px;
+    font-weight:700;
+    background:var(--ink);
+    color:var(--paper);
+    box-shadow:var(--shadow);
+    margin-top:auto;
+  }
+  .btn-block:active{transform:scale(.98);}
+  .btn-block:disabled{opacity:.4;}
+  .form-spacer{flex:1;}
+
+  /* ---------- photos step ---------- */
+  .hint{
+    font-size:13.5px;
+    color:var(--ink-soft);
+    background:var(--card);
+    border-radius:var(--radius-sm);
+    padding:12px 14px;
+    margin-bottom:16px;
+    line-height:1.45;
+  }
+  .photo-toolbar{
+    display:flex; gap:10px;
+    margin-bottom:16px;
+  }
+  .tool-btn{
+    flex:1;
+    padding:12px;
+    border-radius:var(--radius-sm);
+    border:1.5px solid var(--ink);
+    background:var(--card);
+    font-weight:700;
+    font-size:14.5px;
+    color:var(--ink);
+  }
+  .tool-btn.active{background:var(--ink); color:var(--paper);}
+  .tool-btn.remove-mode{border-color:var(--danger); color:var(--danger);}
+  .tool-btn.remove-mode.active{background:var(--danger); color:#fff;}
+  .thumb-grid{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:10px;
+    padding-bottom:14px;
+    overflow-y:auto;
+  }
+  .thumb{
+    position:relative;
+    aspect-ratio:3/4;
+    border-radius:14px;
+    overflow:hidden;
+    background:var(--card);
+    box-shadow:var(--shadow);
+    touch-action:none;
+  }
+  .thumb img{width:100%; height:100%; object-fit:cover; display:block; pointer-events:none;}
+  .thumb-order{
+    position:absolute; top:6px; left:6px;
+    background:rgba(30,33,36,.72);
+    color:#fff;
+    font-size:11px; font-weight:700;
+    padding:2px 7px;
+    border-radius:999px;
+  }
+  .thumb-del-badge{
+    position:absolute; inset:0;
+    background:rgba(178,58,46,.28);
+    display:flex; align-items:center; justify-content:center;
+    color:#fff; font-size:26px; font-weight:800;
+  }
+  .thumb-hidden{opacity:.25;}
+  .thumb.drop-target{outline:3px solid var(--ink); outline-offset:-3px;}
+  .thumb-ghost{
+    position:fixed;
+    border-radius:14px;
+    overflow:hidden;
+    box-shadow:0 12px 28px rgba(0,0,0,.35);
+    z-index:500;
+    pointer-events:none;
+    opacity:.95;
+  }
+  .thumb-add-tile{
+    display:flex; align-items:center; justify-content:center;
+    border:2px dashed var(--line);
+    border-radius:14px;
+    color:var(--ink-faint);
+    font-size:30px;
+    aspect-ratio:3/4;
+    background:transparent;
+  }
+
+  /* ---------- review list ---------- */
+  .paper-list{display:flex; flex-direction:column; gap:10px; overflow-y:auto;}
+  .paper-card{
+    display:flex; gap:12px;
+    background:var(--card);
+    border-radius:16px;
+    box-shadow:var(--shadow);
+    padding:10px;
+    border:none;
+    text-align:left;
+    align-items:center;
+  }
+  .paper-card:active{transform:scale(.98);}
+  .paper-thumb{
+    width:54px; height:70px;
+    border-radius:9px;
+    object-fit:cover;
+    background:var(--line-soft);
+    flex-shrink:0;
+  }
+  .paper-info{min-width:0; flex:1;}
+  .paper-title{font-size:15.5px; font-weight:700; letter-spacing:-.01em; line-height:1.25;}
+  .paper-meta-row{
+    display:flex; align-items:center; gap:6px;
+    margin-top:5px; flex-wrap:wrap;
+  }
+  .unit-badge{
+    font-size:11px; font-weight:700;
+    padding:2px 8px;
+    border-radius:999px;
+    color:#fff;
+  }
+  .paper-date{font-size:11.5px; color:var(--ink-faint);}
+
+  /* ---------- paper detail ---------- */
+  .detail-actions{margin-bottom:14px;}
+  .page-view{
+    display:flex; flex-direction:column; gap:16px;
+    overflow-y:auto;
+  }
+  .page-card{
+    background:var(--card);
+    border-radius:var(--radius-card);
+    box-shadow:var(--shadow);
+    overflow:hidden;
+  }
+  .page-card img{width:100%; display:block;}
+  .page-card-footer{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:10px 14px;
+  }
+  .page-num{font-size:12px; color:var(--ink-faint); font-weight:600;}
+  .share-btn{
+    border:none; background:var(--ink); color:var(--paper);
+    font-size:12.5px; font-weight:700;
+    padding:8px 14px; border-radius:999px;
+  }
+
+  /* ---------- zoom overlay ---------- */
+  .zoom-overlay{
+    position:fixed; inset:0; background:rgba(10,10,11,.96);
+    z-index:900;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .zoom-overlay img{max-width:100%; max-height:100%; object-fit:contain;}
+
+  /* ---------- manage classes list ---------- */
+  .manage-row{
+    display:flex; align-items:center; gap:12px;
+    background:var(--card);
+    border-radius:14px;
+    box-shadow:var(--shadow);
+    padding:14px;
+    margin-bottom:10px;
+  }
+  .manage-row .tab-dot{width:14px; height:14px;}
+  .manage-name{flex:1; font-size:15px; font-weight:700;}
+  .manage-meta{font-size:11.5px; color:var(--ink-faint);}
+  .manage-remove{
+    border:none; background:var(--danger-soft); color:var(--danger);
+    font-size:12.5px; font-weight:700;
+    padding:8px 12px; border-radius:999px;
+  }
+  .add-class-row{display:flex; gap:10px; margin-bottom:20px;}
+  .add-class-row input{flex:1;}
+  .add-class-row button{
+    border:none; background:var(--ink); color:var(--paper);
+    font-weight:700; font-size:14.5px;
+    padding:0 18px; border-radius:var(--radius-sm);
+  }
+  .cap-note{font-size:12.5px; color:var(--ink-faint); margin-bottom:16px;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<input type="file" id="file-input" accept="image/*" multiple style="display:none">
+<script>
+/* ============================== constants ============================== */
+const TAB_COLORS = ['#3E7A73','#B5563C','#C79A44','#7A4E6D','#3E5C8A','#7A8B4E','#C06B5C','#5C6B7A'];
+const MISC = { id:'misc', name:'Misc', color:'#6B6B6B', builtin:true };
+const MAX_CLASSES = 8;
+
+function uid(){
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return 'id-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+}
+
+/* ============================== IndexedDB ============================== */
+let dbPromise = new Promise((resolve, reject)=>{
+  const req = indexedDB.open('digitalBinderDB', 1);
+  req.onupgradeneeded = (e)=>{
+    const db = e.target.result;
+    if (!db.objectStoreNames.contains('classes')) db.createObjectStore('classes', {keyPath:'id'});
+    if (!db.objectStoreNames.contains('papers')) db.createObjectStore('papers', {keyPath:'id'});
+  };
+  req.onsuccess = ()=>resolve(req.result);
+  req.onerror = ()=>reject(req.error);
+});
+
+async function dbGetAll(store){
+  const db = await dbPromise;
+  return new Promise((resolve,reject)=>{
+    const tx = db.transaction(store,'readonly');
+    const req = tx.objectStore(store).getAll();
+    req.onsuccess=()=>resolve(req.result);
+    req.onerror=()=>reject(req.error);
+  });
+}
+async function dbPut(store, obj){
+  const db = await dbPromise;
+  return new Promise((resolve,reject)=>{
+    const tx = db.transaction(store,'readwrite');
+    tx.objectStore(store).put(obj);
+    tx.oncomplete=()=>resolve();
+    tx.onerror=()=>reject(tx.error);
+  });
+}
+async function dbDelete(store, id){
+  const db = await dbPromise;
+  return new Promise((resolve,reject)=>{
+    const tx = db.transaction(store,'readwrite');
+    tx.objectStore(store).delete(id);
+    tx.oncomplete=()=>resolve();
+    tx.onerror=()=>reject(tx.error);
+  });
+}
+
+/* ============================== state ============================== */
+const state = {
+  view:'home',
+  classes:[],
+  papers:[],
+  mode:null,            // 'add' | 'review'
+  selectedClassId:null,
+  draftPaper:null,       // {title, date, unit, unitName, pages:[{id, blob}]}
+  deleteMode:false,
+  reviewList:[],
+  reviewPaper:null,
+  zoomBlob:null,
+  activeObjectUrls:[]
+};
+
+function allClasses(){
+  return [...state.classes, MISC];
+}
+function classById(id){
+  return allClasses().find(c=>c.id===id) || MISC;
+}
+function nextColor(){
+  const used = state.classes.length;
+  return TAB_COLORS[used % TAB_COLORS.length];
+}
+
+function revokeUrls(){
+  state.activeObjectUrls.forEach(u=>URL.revokeObjectURL(u));
+  state.activeObjectUrls = [];
+}
+function urlFor(blob){
+  const u = URL.createObjectURL(blob);
+  state.activeObjectUrls.push(u);
+  return u;
+}
+
+/* ============================== boot ============================== */
+async function boot(){
+  state.classes = await dbGetAll('classes');
+  state.classes.sort((a,b)=>a.order-b.order);
+  state.papers = await dbGetAll('papers');
+  goHome();
+}
+
+function goHome(){
+  revokeUrls();
+  state.view='home';
+  state.mode=null;
+  state.selectedClassId=null;
+  state.draftPaper=null;
+  state.deleteMode=false;
+  render();
+}
+
+/* ============================== image compression ============================== */
+function compressImage(file){
+  return new Promise((resolve,reject)=>{
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = ()=>{
+      const maxDim = 1800;
+      let {width,height} = img;
+      if (width>maxDim || height>maxDim){
+        if (width>=height){ height = Math.round(height*maxDim/width); width=maxDim; }
+        else { width = Math.round(width*maxDim/height); height=maxDim; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width=width; canvas.height=height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img,0,0,width,height);
+      canvas.toBlob(blob=>{
+        URL.revokeObjectURL(url);
+        resolve(blob);
+      },'image/jpeg',0.82);
+    };
+    img.onerror = (e)=>{ URL.revokeObjectURL(url); reject(e); };
+    img.src = url;
+  });
+}
+
+/* ============================== render dispatch ============================== */
+function render(){
+  revokeUrls();
+  const app = document.getElementById('app');
+  const views = {
+    home:renderHome,
+    classSelect:renderClassSelect,
+    paperForm:renderPaperForm,
+    photos:renderPhotos,
+    reviewList:renderReviewList,
+    paperDetail:renderPaperDetail,
+    manage:renderManage
+  };
+  app.innerHTML = '';
+  const el = views[state.view]();
+  app.appendChild(el);
+  if (state.zoomBlob) app.appendChild(renderZoom());
+}
+
+function h(tag, attrs={}, children=[]){
+  const el = document.createElement(tag);
+  for (const k in attrs){
+    const v = attrs[k];
+    if (v===undefined || v===null) continue;
+    if (k==='class') el.className = v;
+    else if (k==='html') el.innerHTML = v;
+    else if (k.startsWith('on') && typeof v==='function') el.addEventListener(k.slice(2), v);
+    else if (k==='style') el.style.cssText = v;
+    else if (v===true) el.setAttribute(k, '');
+    else if (v===false) continue;
+    else el.setAttribute(k, v);
+  }
+  (Array.isArray(children)?children:[children]).forEach(c=>{
+    if (c==null) return;
+    el.appendChild(typeof c==='string' ? document.createTextNode(c) : c);
+  });
+  return el;
+}
+
+function topbar(title, onBack, tabColor){
+  const bar = h('div',{class:'topbar'});
+  if (onBack) bar.appendChild(h('button',{class:'back-btn', onclick:onBack}, '‹'));
+  if (tabColor) bar.appendChild(h('span',{class:'tab-dot', style:`background:${tabColor}`}));
+  bar.appendChild(h('div',{class:'topbar-title'}, title));
+  return bar;
+}
+
+/* ============================== HOME ============================== */
+function renderHome(){
+  const screen = h('div',{class:'screen home'});
+  screen.appendChild(h('div',{class:'home-header'},[
+    h('div',{class:'home-title'},'My Digital Binder'),
+    h('div',{class:'home-sub mono'}, `${state.classes.length} classes · ${state.papers.length} papers`)
+  ]));
+  screen.appendChild(h('button',{class:'pill-primary', onclick:()=>startFlow('add')},[
+    h('span',{class:'pill-icon'},'＋'), h('span',{},'Add Papers')
+  ]));
+  screen.appendChild(h('button',{class:'pill-primary outline', onclick:()=>startFlow('review')},[
+    h('span',{class:'pill-icon'},'▤'), h('span',{},'Review Papers')
+  ]));
+  screen.appendChild(h('div',{class:'home-footer'},[
+    h('button',{class:'text-btn', onclick:()=>{state.view='manage'; state.manageTab='add'; render();}},'Add Class'),
+    h('button',{class:'text-btn danger', onclick:()=>{state.view='manage'; state.manageTab='remove'; render();}},'Remove Class')
+  ]));
+  return screen;
+}
+
+function startFlow(mode){
+  state.mode = mode;
+  state.view = 'classSelect';
+  render();
+}
+
+/* ============================== CLASS SELECT ============================== */
+function renderClassSelect(){
+  const screen = h('div',{class:'screen'});
+  const title = state.mode==='add' ? 'Add Papers — pick a class' : 'Review Papers — pick a class';
+  screen.appendChild(topbar(title, goHome));
+  const classes = allClasses();
+  if (state.classes.length===0){
+    screen.appendChild(h('div',{class:'empty-note'}, 'No classes yet. Go back and tap "Add Class" to set up your subjects — Misc is always here for everything else.'));
+    screen.appendChild(h('div',{class:'class-grid', style:'margin-top:16px;'},[
+      classPill(MISC)
+    ]));
+    return screen;
+  }
+  const grid = h('div',{class:'class-grid'});
+  classes.forEach(c=>grid.appendChild(classPill(c)));
+  screen.appendChild(grid);
+  return screen;
+}
+
+function classPill(c){
+  const paperCount = state.papers.filter(p=>p.classId===c.id).length;
+  return h('button',{class:'class-pill', onclick:()=>selectClass(c.id)},[
+    h('span',{class:'tab-dot', style:`background:${c.color}`}),
+    h('span',{class:'class-pill-name'}, c.name),
+    h('span',{class:'class-pill-meta mono'}, `${paperCount} paper${paperCount===1?'':'s'}`)
+  ]);
+}
+
+function selectClass(classId){
+  state.selectedClassId = classId;
+  if (state.mode==='add'){
+    const now = new Date();
+    now.setMinutes(now.getMinutes()-now.getTimezoneOffset());
+    state.draftPaper = { title:'', date:now.toISOString().slice(0,16), unit:false, unitNum:'', unitName:'', pages:[] };
+    state.view = 'paperForm';
+  } else {
+    const list = state.papers.filter(p=>p.classId===classId).slice();
+    list.sort((a,b)=>{
+      const ua = (a.unit==null? -1 : a.unit), ub = (b.unit==null? -1 : b.unit);
+      if (ub!==ua) return ub-ua;
+      return new Date(b.date) - new Date(a.date);
+    });
+    state.reviewList = list;
+    state.view = 'reviewList';
+  }
+  render();
+}
+
+/* ============================== PAPER FORM ============================== */
+function renderPaperForm(){
+  const cls = classById(state.selectedClassId);
+  const d = state.draftPaper;
+  const screen = h('div',{class:'screen'});
+  screen.appendChild(topbar(cls.name, ()=>{state.view='classSelect'; render();}, cls.color));
+
+  const titleField = h('div',{class:'field'},[
+    h('label',{class:'field-label'},'Title'),
+    h('input',{type:'text', placeholder:'e.g. Chapter 4 Worksheet', value:d.title, oninput:e=>d.title=e.target.value})
+  ]);
+
+  const dateField = h('div',{class:'field'},[
+    h('label',{class:'field-label'},'Date & time'),
+    h('input',{type:'datetime-local', value:d.date, oninput:e=>d.date=e.target.value})
+  ]);
+
+  const unitToggle = h('div',{class:'field'},[
+    h('label',{class:'field-label'},'Unit'),
+    h('div',{class:'switch-row'},[
+      h('span',{class:'switch-label'},'Add a unit number?'),
+      h('button',{class:'switch'+(d.unit?' on':''), onclick:()=>{d.unit=!d.unit; render();}})
+    ])
+  ]);
+
+  screen.appendChild(titleField);
+  screen.appendChild(dateField);
+  screen.appendChild(unitToggle);
+
+  if (d.unit){
+    const extra = h('div',{class:'unit-extra'},[
+      h('input',{type:'number', inputmode:'numeric', placeholder:'Unit number, e.g. 4', value:d.unitNum, oninput:e=>d.unitNum=e.target.value}),
+      h('input',{type:'text', placeholder:'Unit name (optional)', value:d.unitName, oninput:e=>d.unitName=e.target.value})
+    ]);
+    screen.appendChild(extra);
+  }
+
+  screen.appendChild(h('div',{class:'form-spacer'}));
+  screen.appendChild(h('button',{class:'btn-block', onclick:()=>{
+    if (!d.title.trim()) d.title = 'Untitled paper';
+    state.view='photos'; render();
+  }}, 'Add Photos →'));
+
+  return screen;
+}
+
+/* ============================== PHOTOS STEP ============================== */
+function renderPhotos(){
+  const cls = classById(state.selectedClassId);
+  const d = state.draftPaper;
+  const screen = h('div',{class:'screen'});
+  screen.appendChild(topbar(d.title || 'Add Photos', ()=>{state.view='paperForm'; render();}, cls.color));
+
+  screen.appendChild(h('div',{class:'hint'}, 'Sort pages from cover to back. Drag a thumbnail to reorder. Tap a photo to zoom in and check it, tap again to close.'));
+
+  const toolbar = h('div',{class:'photo-toolbar'},[
+    h('button',{class:'tool-btn', onclick:()=>document.getElementById('file-input').click()}, '＋ Add Photos'),
+    h('button',{class:'tool-btn remove-mode'+(state.deleteMode?' active':''), onclick:()=>{state.deleteMode=!state.deleteMode; render();}}, state.deleteMode ? 'Done Removing' : '－ Remove')
+  ]);
+  screen.appendChild(toolbar);
+
+  const grid = h('div',{class:'thumb-grid', id:'thumb-grid'});
+  d.pages.forEach((page, idx)=>{
+    const thumb = h('div',{class:'thumb', 'data-index':idx},[
+      h('img',{src:urlFor(page.blob)}),
+      h('span',{class:'thumb-order'}, String(idx+1))
+    ]);
+    if (state.deleteMode) thumb.appendChild(h('div',{class:'thumb-del-badge'},'✕'));
+    grid.appendChild(thumb);
+  });
+  grid.appendChild(h('button',{class:'thumb-add-tile', onclick:()=>document.getElementById('file-input').click()}, '＋'));
+  screen.appendChild(grid);
+
+  screen.appendChild(h('button',{class:'btn-block', style:'margin-top:14px;', onclick:savePaper, disabled: d.pages.length===0 ? true : undefined},
+    `Save Paper (${d.pages.length} page${d.pages.length===1?'':'s'})`));
+
+  requestAnimationFrame(()=>attachDragHandlers(grid));
+  return screen;
+}
+
+document.getElementById('file-input').addEventListener('change', async (e)=>{
+  const files = Array.from(e.target.files || []);
+  e.target.value = '';
+  if (!files.length || !state.draftPaper) return;
+  for (const file of files){
+    try{
+      const blob = await compressImage(file);
+      state.draftPaper.pages.push({id:uid(), blob});
+    }catch(err){ console.error('image compress failed', err); }
+  }
+  render();
+});
+
+function attachDragHandlers(container){
+  let sourceIndex=null, targetIndex=null, dragging=false, dragEl=null, ghost=null, startX=0, startY=0;
+
+  container.querySelectorAll('.thumb').forEach(el=>{
+    el.addEventListener('pointerdown', e=>{
+      if (state.deleteMode){
+        const idx = Number(el.dataset.index);
+        deletePage(idx);
+        return;
+      }
+      sourceIndex = Number(el.dataset.index);
+      dragEl = el; dragging=false;
+      startX=e.clientX; startY=e.clientY;
+      try{ el.setPointerCapture(e.pointerId); }catch(err){}
+    });
+
+    el.addEventListener('pointermove', e=>{
+      if (sourceIndex===null || state.deleteMode) return;
+      const dx=e.clientX-startX, dy=e.clientY-startY;
+      if (!dragging && Math.hypot(dx,dy)>8){
+        dragging = true;
+        const rect = dragEl.getBoundingClientRect();
+        ghost = dragEl.cloneNode(true);
+        ghost.className = 'thumb thumb-ghost';
+        ghost.style.width = rect.width+'px';
+        ghost.style.height = rect.height+'px';
+        ghost.style.left = rect.left+'px';
+        ghost.style.top = rect.top+'px';
+        document.body.appendChild(ghost);
+        dragEl.classList.add('thumb-hidden');
+      }
+      if (dragging){
+        ghost.style.left = (e.clientX - ghost.offsetWidth/2)+'px';
+        ghost.style.top = (e.clientY - ghost.offsetHeight/2)+'px';
+        const atPoint = document.elementFromPoint(e.clientX, e.clientY);
+        const hover = atPoint && atPoint.closest('.thumb:not(.thumb-ghost)');
+        container.querySelectorAll('.thumb').forEach(t=>t.classList.remove('drop-target'));
+        if (hover && hover!==dragEl){
+          hover.classList.add('drop-target');
+          targetIndex = Number(hover.dataset.index);
+        } else {
+          targetIndex = null;
+        }
+      }
+    });
+
+    el.addEventListener('pointerup', ()=>{
+      if (dragging){
+        if (ghost){ ghost.remove(); ghost=null; }
+        dragEl.classList.remove('thumb-hidden');
+        container.querySelectorAll('.thumb').forEach(t=>t.classList.remove('drop-target'));
+        if (targetIndex!==null && targetIndex!==sourceIndex){
+          const pages = state.draftPaper.pages;
+          const [moved] = pages.splice(sourceIndex,1);
+          pages.splice(targetIndex,0,moved);
+          render();
+        }
+      } else if (sourceIndex!==null && !state.deleteMode){
+        openZoom(state.draftPaper.pages[sourceIndex].blob);
+      }
+      sourceIndex=null; targetIndex=null; dragging=false; dragEl=null;
+    });
+
+    el.addEventListener('pointercancel', ()=>{
+      if (ghost){ ghost.remove(); ghost=null; }
+      if (dragEl) dragEl.classList.remove('thumb-hidden');
+      sourceIndex=null; targetIndex=null; dragging=false; dragEl=null;
+    });
+  });
+}
+
+function deletePage(idx){
+  state.draftPaper.pages.splice(idx,1);
+  render();
+}
+
+async function savePaper(){
+  const d = state.draftPaper;
+  if (!d.pages.length) return;
+  const paper = {
+    id: uid(),
+    classId: state.selectedClassId,
+    title: d.title.trim() || 'Untitled paper',
+    date: new Date(d.date).toISOString(),
+    unit: d.unit && d.unitNum!=='' ? Number(d.unitNum) : null,
+    unitName: d.unit ? (d.unitName.trim() || null) : null,
+    pages: d.pages
+  };
+  await dbPut('papers', paper);
+  state.papers.push(paper);
+  goHome();
+}
+
+/* ============================== ZOOM ============================== */
+function openZoom(blob){
+  state.zoomBlob = blob;
+  render();
+}
+function renderZoom(){
+  return h('div',{class:'zoom-overlay', onclick:()=>{state.zoomBlob=null; render();}},[
+    h('img',{src:urlFor(state.zoomBlob)})
+  ]);
+}
+
+/* ============================== REVIEW LIST ============================== */
+function renderReviewList(){
+  const cls = classById(state.selectedClassId);
+  const screen = h('div',{class:'screen'});
+  screen.appendChild(topbar(cls.name, ()=>{state.view='classSelect'; render();}, cls.color));
+
+  if (!state.reviewList.length){
+    screen.appendChild(h('div',{class:'empty-note'}, `No papers saved for ${cls.name} yet.`));
+    return screen;
+  }
+
+  const list = h('div',{class:'paper-list'});
+  state.reviewList.forEach(p=>{
+    const row = h('button',{class:'paper-card', onclick:()=>openPaperDetail(p)},[
+      h('img',{class:'paper-thumb', src: urlFor(p.pages[0].blob)}),
+      h('div',{class:'paper-info'},[
+        h('div',{class:'paper-title'}, p.title),
+        h('div',{class:'paper-meta-row'},[
+          p.unit!=null ? h('span',{class:'unit-badge', style:`background:${cls.color}`}, `Unit ${p.unit}${p.unitName? ' · '+p.unitName : ''}`) : null,
+          h('span',{class:'paper-date mono'}, formatDate(p.date))
+        ])
+      ])
+    ]);
+    list.appendChild(row);
+  });
+  screen.appendChild(list);
+  return screen;
+}
+
+function formatDate(iso){
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined,{month:'short', day:'numeric', year:'numeric'});
+}
+
+function openPaperDetail(paper){
+  state.reviewPaper = paper;
+  state.view = 'paperDetail';
+  render();
+}
+
+/* ============================== PAPER DETAIL ============================== */
+function renderPaperDetail(){
+  const cls = classById(state.selectedClassId);
+  const p = state.reviewPaper;
+  const screen = h('div',{class:'screen'});
+  screen.appendChild(topbar(p.title, ()=>{state.view='reviewList'; render();}, cls.color));
+
+  const meta = h('div',{class:'hint'}, [
+    p.unit!=null ? `Unit ${p.unit}${p.unitName? ' · '+p.unitName : ''} · ` : '',
+    formatDate(p.date), ` · ${p.pages.length} page${p.pages.length===1?'':'s'}`
+  ].join(''));
+  screen.appendChild(meta);
+
+  screen.appendChild(h('div',{class:'detail-actions'},[
+    h('button',{class:'btn-block', style:'margin-top:0;', onclick:()=>shareAllPages(p)}, 'Share All Pages')
+  ]));
+
+  const pageView = h('div',{class:'page-view'});
+  p.pages.forEach((page, idx)=>{
+    pageView.appendChild(h('div',{class:'page-card'},[
+      h('img',{src:urlFor(page.blob), onclick:()=>openZoom(page.blob)}),
+      h('div',{class:'page-card-footer'},[
+        h('span',{class:'page-num mono'}, `Page ${idx+1} of ${p.pages.length}`),
+        h('button',{class:'share-btn', onclick:()=>sharePage(page.blob, `${p.title}-p${idx+1}.jpg`)}, 'Save')
+      ])
+    ]));
+  });
+  screen.appendChild(pageView);
+  return screen;
+}
+
+async function sharePage(blob, filename){
+  try{
+    const file = new File([blob], filename, {type:'image/jpeg'});
+    if (navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({files:[file]});
+      return;
+    }
+  }catch(err){
+    if (err.name==='AbortError') return;
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 30000);
+}
+
+async function shareAllPages(paper){
+  try{
+    const files = paper.pages.map((pg,i)=> new File([pg.blob], `${paper.title}-p${i+1}.jpg`, {type:'image/jpeg'}));
+    if (navigator.canShare && navigator.canShare({files})){
+      await navigator.share({files});
+      return;
+    }
+  }catch(err){
+    if (err.name==='AbortError') return;
+  }
+  alert("Your browser can't share multiple images at once — use the Save button under each page instead.");
+}
+
+/* ============================== MANAGE CLASSES ============================== */
+function renderManage(){
+  const screen = h('div',{class:'screen'});
+  screen.appendChild(topbar(state.manageTab==='add' ? 'Add Class' : 'Remove Class', goHome));
+
+  if (state.manageTab==='add'){
+    const atCap = state.classes.length >= MAX_CLASSES;
+    screen.appendChild(h('div',{class:'cap-note'}, atCap
+      ? `You've reached ${MAX_CLASSES} classes. Remove one to add another — Misc is always available too.`
+      : `${state.classes.length} of ${MAX_CLASSES} classes used.`));
+    let inputVal = '';
+    const input = h('input',{type:'text', placeholder:'Class name, e.g. Biology', oninput:e=>inputVal=e.target.value});
+    const row = h('div',{class:'add-class-row'},[
+      input,
+      h('button',{onclick: async ()=>{
+        const name = inputVal.trim();
+        if (!name || atCap) return;
+        const cls = {id:uid(), name, color:nextColor(), order:state.classes.length};
+        await dbPut('classes', cls);
+        state.classes.push(cls);
+        render();
+      }}, 'Add')
+    ]);
+    if (!atCap) screen.appendChild(row);
+    state.classes.forEach(c=>{
+      screen.appendChild(h('div',{class:'manage-row'},[
+        h('span',{class:'tab-dot', style:`background:${c.color}`}),
+        h('span',{class:'manage-name'}, c.name)
+      ]));
+    });
+    if (!state.classes.length) screen.appendChild(h('div',{class:'empty-note'},'No classes yet — add your first one above.'));
+  } else {
+    if (!state.classes.length){
+      screen.appendChild(h('div',{class:'empty-note'},'No classes to remove yet.'));
+      return screen;
+    }
+    state.classes.forEach(c=>{
+      const count = state.papers.filter(p=>p.classId===c.id).length;
+      screen.appendChild(h('div',{class:'manage-row'},[
+        h('span',{class:'tab-dot', style:`background:${c.color}`}),
+        h('div',{style:'flex:1;'},[
+          h('div',{class:'manage-name'}, c.name),
+          h('div',{class:'manage-meta mono'}, `${count} paper${count===1?'':'s'}`)
+        ]),
+        h('button',{class:'manage-remove', onclick:()=>removeClass(c, count)}, 'Remove')
+      ]));
+    });
+  }
+  return screen;
+}
+
+async function removeClass(cls, count){
+  const msg = count>0
+    ? `Remove "${cls.name}"? Its ${count} paper${count===1?'':'s'} will move to Misc.`
+    : `Remove "${cls.name}"?`;
+  if (!confirm(msg)) return;
+  await dbDelete('classes', cls.id);
+  state.classes = state.classes.filter(c=>c.id!==cls.id);
+  const affected = state.papers.filter(p=>p.classId===cls.id);
+  for (const p of affected){
+    p.classId = 'misc';
+    await dbPut('papers', p);
+  }
+  render();
+}
+
+boot();
+</script>
+</body>
+</html>
