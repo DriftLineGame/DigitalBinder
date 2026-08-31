@@ -297,6 +297,48 @@
     max-width:42ch;
   }
 
+  /* facility grid */
+  .facility{
+    display:grid;
+    grid-template-columns:repeat(4, 1fr);
+    border-top:1px solid var(--panel-line);
+    border-left:1px solid var(--panel-line);
+    margin-bottom:28px;
+  }
+  @media (max-width:820px){
+    .facility{grid-template-columns:1fr 1fr;}
+  }
+  @media (max-width:500px){
+    .facility{grid-template-columns:1fr;}
+  }
+  .facility-item{
+    padding:26px 24px;
+    border-right:1px solid var(--panel-line);
+    border-bottom:1px solid var(--panel-line);
+  }
+  .facility-item h4{
+    font-family:var(--sans);
+    font-weight:600;
+    font-size:0.92rem;
+    margin-bottom:8px;
+  }
+  .facility-item p{
+    color:var(--text-muted);
+    font-size:0.85rem;
+  }
+
+  .approval-note{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:baseline;
+    gap:6px 18px;
+  }
+  .approval-note p{
+    color:var(--text-muted);
+    font-size:0.9rem;
+    max-width:52ch;
+  }
+
   /* process strip */
   .process{
     display:flex;
@@ -439,8 +481,39 @@
       <span class="card-status">Proposed</span>
       <h3>Celestron RASA 8"</h3>
       <div class="specs">203mm aperture · f/2 · 400mm focal length</div>
-      <p class="desc">On loan from a club member, if approved. Enough light-gathering power to attempt something bigger: catching the brightness dip of a known exoplanet as it crosses its star.</p>
+      <p class="desc">Not a backyard telescope brought in for the occasion — a permanently mounted observatory instrument, offered by a club member if the club's proposal for research time is approved.</p>
     </div>
+  </div>
+</section>
+
+<section id="observatory">
+  <div class="section-head">
+    <h2>The instrument we're asking to use</h2>
+    <p>This isn't a telescope that gets carried outside and packed away. It's a fixed, computer-controlled observatory setup — the kind of facility research-grade photometry actually needs.</p>
+  </div>
+
+  <div class="facility">
+    <div class="facility-item">
+      <h4>Housing</h4>
+      <p>Permanently installed in a dedicated roll-off-roof shed, insulated from the vibration and disturbance of a tabletop setup.</p>
+    </div>
+    <div class="facility-item">
+      <h4>Mount</h4>
+      <p>Celestron CGX equatorial mount on a fixed concrete pier — precise enough to track a single star for hours without drifting off target.</p>
+    </div>
+    <div class="facility-item">
+      <h4>Camera</h4>
+      <p>A dedicated ZWO astronomical CMOS camera, purpose-built for imaging and photometry rather than general photography.</p>
+    </div>
+    <div class="facility-item">
+      <h4>Control</h4>
+      <p>Run from an attached computer station, so a full multi-hour session can be started, monitored, and logged without anyone standing at the eyepiece.</p>
+    </div>
+  </div>
+
+  <div class="approval-note">
+    <span class="status-tag">Awaiting approval</span>
+    <p>The owner has offered telescope time. What's left is our formal research proposal — the target, the schedule, and the exact window of time we're asking for.</p>
   </div>
 </section>
 
