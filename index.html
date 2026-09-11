@@ -156,10 +156,13 @@
         <input type="color" id="colorPicker" value="#3ddaff">
       </div>
       <div class="row"><label>Line thickness</label>
-        <input type="range" id="thicknessSlider" min="2" max="16" step="1" value="6">
+        <input type="range" id="thicknessSlider" min="4" max="40" step="1" value="16">
+      </div>
+      <div class="row"><label>Trail opacity</label>
+        <input type="range" id="opacitySlider" min="0.15" max="1" step="0.05" value="0.65">
       </div>
       <div class="row"><label>Tracking sensitivity</label>
-        <input type="range" id="sensSlider" min="1" max="100" step="1" value="45">
+        <input type="range" id="sensSlider" min="1" max="100" step="1" value="60">
       </div>
       <div class="row"><label>Fade older trail</label>
         <div class="toggle"><input type="checkbox" id="fadeToggle"><div class="knob"></div></div>
@@ -208,6 +211,7 @@
   const matchColorToggle = document.getElementById('matchColorToggle');
   const colorPicker = document.getElementById('colorPicker');
   const thicknessSlider = document.getElementById('thicknessSlider');
+  const opacitySlider = document.getElementById('opacitySlider');
   const sensSlider = document.getElementById('sensSlider');
   const fadeToggle = document.getElementById('fadeToggle');
 
@@ -223,15 +227,16 @@
   // ---------- State ----------
   let currentStream = null;
   let videoTrack = null;
-  let trackW = 176, trackH = 99;          // low-res analysis buffer size
+  let trackW = 208, trackH = 117;         // low-res analysis buffer size
   let grayPrev = null, grayCurr = null;
   let smallCanvas = document.createElement('canvas');
   let smallCtx = smallCanvas.getContext('2d', {willReadFrequently:true});
 
   let tracking = false;
   let lostFrames = 0;
-  const LOST_LIMIT = 14;                  // frames with no valid match before we call it lost
-  let lastTrackPt = null;                 // {x,y} in track-res coords
+  const LOST_LIMIT = 20;                  // consecutive true misses (after coasting) before we call it lost
+  let lastTrackPt = null;                 // {x,y} in track-res coords — actual or coasted
+  let trackVel = {x:0, y:0};              // estimated per-frame velocity, track-res coords
   let smoothPt = null;                    // {x,y} in full-res coords
   let points = [];                        // [{x,y,t,color?}] full-res, for drawing
   let currentColor = '#3ddaff';
@@ -332,6 +337,7 @@
   function lockTrackingAt(fullX, fullY){
     const scaleX = trackW/stage.width, scaleY = trackH/stage.height;
     lastTrackPt = {x: fullX*scaleX, y: fullY*scaleY};
+    trackVel = {x:0, y:0};
     smoothPt = {x: fullX, y: fullY};
     points = [{x:fullX, y:fullY, t:performance.now()}];
     tracking = true;
@@ -347,6 +353,7 @@
     tracking = false;
     points = [];
     lastTrackPt = null; smoothPt = null;
+    trackVel = {x:0, y:0};
     lostFrames = 0; colorLocked = false;
     lostBanner.classList.remove('show');
     tapHint.style.opacity = '1';
@@ -402,7 +409,38 @@
         w:maxX-minX+1, h:maxY-minY+1
       });
     }
-    return blobs;
+    return mergeCloseBlobs(blobs);
+  }
+
+  // A spinning/glinting disc often fractures into 2-3 separate blobs one frame
+  // to the next. Merge blobs that are close together into a single weighted blob
+  // so the centroid stays stable instead of jumping between fragments.
+  function mergeCloseBlobs(blobs){
+    const merged = [];
+    const used = new Uint8Array(blobs.length);
+    const mergeDist = trackW * 0.06;
+    for(let i=0; i<blobs.length; i++){
+      if(used[i]) continue;
+      let b = {...blobs[i]};
+      used[i] = 1;
+      for(let j=i+1; j<blobs.length; j++){
+        if(used[j]) continue;
+        const dx = blobs[j].x - b.x, dy = blobs[j].y - b.y;
+        if(Math.sqrt(dx*dx+dy*dy) < mergeDist){
+          const totalArea = b.area + blobs[j].area;
+          b = {
+            x: (b.x*b.area + blobs[j].x*blobs[j].area) / totalArea,
+            y: (b.y*b.area + blobs[j].y*blobs[j].area) / totalArea,
+            area: totalArea,
+            w: Math.max(b.w, blobs[j].w),
+            h: Math.max(b.h, blobs[j].h)
+          };
+          used[j] = 1;
+        }
+      }
+      merged.push(b);
+    }
+    return merged;
   }
 
   // ---------- Main loop ----------
@@ -421,36 +459,48 @@
       }
 
       if(tracking && grayPrev){
-        const threshold = 8 + (100-Number(sensSlider.value))*0.8; // lower slider->more sensitive->lower threshold
+        const threshold = 6 + (100-Number(sensSlider.value))*0.55; // lower slider->more sensitive->lower threshold
         const mask = new Uint8Array(trackW*trackH);
         let changed = 0;
         for(let p=0; p<mask.length; p++){
           if(Math.abs(grayCurr[p]-grayPrev[p]) > threshold){ mask[p]=1; changed++; }
         }
         const totalPx = trackW*trackH;
+
+        // Predict where the disc should be this frame from its recent velocity,
+        // and search around that predicted point rather than the last fixed spot —
+        // this is what keeps a fast throw from "glitching" off between frames.
+        const predicted = {
+          x: Math.min(trackW-1, Math.max(0, lastTrackPt.x + trackVel.x)),
+          y: Math.min(trackH-1, Math.max(0, lastTrackPt.y + trackVel.y))
+        };
+        const speed = Math.sqrt(trackVel.x*trackVel.x + trackVel.y*trackVel.y);
+        const maxJump = Math.min(trackW*0.5, 20 + speed*2.5);
+
         let matchedBlob = null;
-        if(changed < totalPx*0.45){ // reject whole-frame lighting shifts / big shake
+        if(changed < totalPx*0.5){ // reject whole-frame lighting shifts / big shake
           const blobs = findBlobs(mask);
-          const minArea = 3, maxArea = totalPx*0.15;
+          const minArea = Math.max(4, Math.round(totalPx*0.0007)), maxArea = totalPx*0.18;
           let bestDist = Infinity;
           for(const b of blobs){
             if(b.area < minArea || b.area > maxArea) continue;
             const aspect = b.w / Math.max(1,b.h);
-            if(aspect < 0.35 || aspect > 2.8) continue; // reject long thin arm-like blobs
-            const dx = b.x - lastTrackPt.x, dy = b.y - lastTrackPt.y;
+            if(aspect < 0.3 || aspect > 3.2) continue; // reject long thin arm-like blobs
+            const dx = b.x - predicted.x, dy = b.y - predicted.y;
             const dist = Math.sqrt(dx*dx+dy*dy);
-            const maxJump = trackW*0.35; // gate: disc can't teleport across frame in one tick
             if(dist > maxJump) continue;
             if(dist < bestDist){ bestDist = dist; matchedBlob = b; }
           }
         }
 
         if(matchedBlob){
+          const newVel = {x: matchedBlob.x - lastTrackPt.x, y: matchedBlob.y - lastTrackPt.y};
+          trackVel = {x: trackVel.x*0.4 + newVel.x*0.6, y: trackVel.y*0.4 + newVel.y*0.6};
           lastTrackPt = {x:matchedBlob.x, y:matchedBlob.y};
           lostFrames = 0;
           const scaleX = stage.width/trackW, scaleY = stage.height/trackH;
           const fx = matchedBlob.x*scaleX, fy = matchedBlob.y*scaleY;
-          const alpha = 0.45; // exponential smoothing factor
+          const alpha = 0.5; // exponential smoothing factor
           smoothPt = {
             x: smoothPt.x + (fx-smoothPt.x)*alpha,
             y: smoothPt.y + (fy-smoothPt.y)*alpha
@@ -458,6 +508,11 @@
           points.push({x:smoothPt.x, y:smoothPt.y, t:performance.now()});
           if(!colorLocked) sampleColorAt(Math.round(matchedBlob.x), Math.round(matchedBlob.y));
         } else {
+          // No confirmed detection this frame: coast forward on the predicted
+          // position (don't add a trail point, just keep the search gate on-track)
+          // and decay velocity a little so we don't run away if it's really gone.
+          lastTrackPt = predicted;
+          trackVel = {x: trackVel.x*0.85, y: trackVel.y*0.85};
           lostFrames++;
           if(lostFrames > LOST_LIMIT){
             tracking = false;
@@ -479,6 +534,7 @@
   function drawTrail(){
     if(points.length < 2) return;
     const thickness = Number(thicknessSlider.value);
+    const baseAlpha = Number(opacitySlider.value);
     const useMatch = matchColorToggle.checked;
     const baseColor = useMatch ? currentColor : colorPicker.value;
     const fade = fadeToggle.checked;
@@ -487,20 +543,36 @@
 
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
+    ctx.strokeStyle = baseColor;
+    ctx.lineWidth = thickness;
 
+    if(!fade){
+      // One single path for the whole trail at a constant semi-transparent alpha.
+      // Stroking one continuous path (instead of many overlapping short segments)
+      // avoids the darker/patchy look you get where segments double up on bends.
+      ctx.globalAlpha = baseAlpha;
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      for(let i=1; i<points.length-1; i++){
+        const p1 = points[i], p2 = points[i+1];
+        const mid = {x:(p1.x+p2.x)/2, y:(p1.y+p2.y)/2};
+        ctx.quadraticCurveTo(p1.x, p1.y, mid.x, mid.y);
+      }
+      const last = points[points.length-1];
+      ctx.lineTo(last.x, last.y);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      return;
+    }
+
+    // Fade mode needs per-segment alpha, so segments are stroked individually.
     for(let i=1; i<points.length-1; i++){
       const p0 = points[i-1], p1 = points[i], p2 = points[i+1];
       const midA = {x:(p0.x+p1.x)/2, y:(p0.y+p1.y)/2};
       const midB = {x:(p1.x+p2.x)/2, y:(p1.y+p2.y)/2};
-
-      let alpha = 1;
-      if(fade){
-        const age = now - p1.t;
-        alpha = Math.max(0.08, 1 - age/FADE_MS);
-      }
-      ctx.strokeStyle = baseColor;
+      const age = now - p1.t;
+      const alpha = Math.max(0.06, baseAlpha * (1 - age/FADE_MS));
       ctx.globalAlpha = alpha;
-      ctx.lineWidth = thickness;
       ctx.beginPath();
       ctx.moveTo(midA.x, midA.y);
       ctx.quadraticCurveTo(p1.x, p1.y, midB.x, midB.y);
@@ -508,11 +580,9 @@
     }
     ctx.globalAlpha = 1;
 
-    if(fade){
-      // drop points that are fully faded so the array doesn't grow forever
-      while(points.length && (now - points[0].t) > FADE_MS + 500){
-        points.shift();
-      }
+    // drop points that are fully faded so the array doesn't grow forever
+    while(points.length && (now - points[0].t) > FADE_MS + 500){
+      points.shift();
     }
   }
 
