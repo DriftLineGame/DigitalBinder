@@ -2,754 +2,599 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>STORM LED SCOREBOARD</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Disc Trail Cam</title>
 <style>
-  :root{ --bg:#000; }
-  html,body{
-    margin:0; padding:0; width:100%; height:100%; background:var(--bg);
-    overflow:hidden; -webkit-tap-highlight-color:transparent;
+  :root{
+    --bg:#0b0d10; --panel:#14181d; --panel2:#1c2128; --line:#2a3038;
+    --accent:#ff7a3d; --accent2:#3ddaff; --text:#eef2f5; --sub:#8a94a1;
   }
-  body{ display:flex; align-items:center; justify-content:center; }
-  #board{ width:100%; height:100%; display:block; background:var(--bg); }
-
-  /* subtle CRT bezel vignette + scanlines, purely decorative, cheap CSS */
-  #crt{
-    position:fixed; inset:0; pointer-events:none;
-    background:
-      repeating-linear-gradient(0deg, rgba(0,0,0,0.18) 0px, rgba(0,0,0,0.18) 1px, transparent 2px, transparent 3px),
-      radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%);
-    mix-blend-mode:multiply;
-  }
-
-  #power-overlay{
-    position:fixed; inset:0; background:#000; color:#ffb000;
-    display:flex; flex-direction:column; align-items:center; justify-content:center;
-    font-family: monospace; text-align:center; gap:14px; cursor:pointer; z-index:50;
-    letter-spacing:2px;
-  }
-  #power-overlay .big{ font-size:clamp(18px,4vw,34px); font-weight:bold; }
-  #power-overlay .small{ font-size:clamp(11px,2vw,16px); opacity:.75; }
-  #power-overlay .dot{
-    width:14px;height:14px;border-radius:50%;background:#ff2b2b;
-    box-shadow:0 0 12px 4px rgba(255,43,43,.8);
-    animation:blink 1s steps(1) infinite;
-  }
-  @keyframes blink{ 50%{ opacity:.15 } }
-
-  #fs-btn{
-    position:fixed; bottom:10px; right:10px; z-index:40;
-    background:rgba(20,20,20,.6); color:#ffb000; border:1px solid #442d00;
-    font-family:monospace; font-size:11px; padding:6px 10px; border-radius:4px;
-    cursor:pointer; letter-spacing:1px; user-select:none;
-  }
-  #fs-btn:active{ background:rgba(60,40,0,.8); }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    overflow:hidden; height:100%; width:100%;}
+  #app{position:fixed; inset:0; display:flex; flex-direction:column;}
+  #topbar{display:flex; align-items:center; justify-content:space-between;
+    padding:10px 12px calc(10px + env(safe-area-inset-top,0px)); background:var(--panel);
+    padding-top:10px; z-index:5;}
+  #topbar h1{font-size:15px; margin:0; font-weight:600; letter-spacing:.3px;}
+  #topbar .sub{font-size:11px; color:var(--sub);}
+  .iconbtn{background:var(--panel2); border:1px solid var(--line); color:var(--text);
+    border-radius:10px; padding:8px 10px; font-size:13px; display:flex; align-items:center; gap:6px;}
+  #stageWrap{position:relative; flex:1; min-height:0; background:#000; display:flex;
+    align-items:center; justify-content:center; overflow:hidden;}
+  #video{position:absolute; opacity:0; pointer-events:none;}
+  #stage{max-width:100%; max-height:100%; touch-action:none; display:block;}
+  #tapHint{position:absolute; top:14px; left:50%; transform:translateX(-50%);
+    background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.15); padding:7px 14px;
+    border-radius:999px; font-size:13px; pointer-events:none; transition:opacity .25s;}
+  #lostBanner{position:absolute; bottom:14px; left:50%; transform:translateX(-50%);
+    background:rgba(200,60,40,.85); padding:7px 14px; border-radius:999px; font-size:13px;
+    pointer-events:none; opacity:0; transition:opacity .25s;}
+  #lostBanner.show{opacity:1;}
+  #camStatus{position:absolute; top:14px; right:14px; background:rgba(0,0,0,.5);
+    padding:5px 9px; border-radius:8px; font-size:11px; color:var(--sub);}
+  #recDot{width:9px; height:9px; border-radius:50%; background:#ff3b3b; display:none;
+    animation:pulse 1s infinite;}
+  #recDot.on{display:inline-block;}
+  @keyframes pulse{0%,100%{opacity:1} 50%{opacity:.25}}
+  #bottombar{display:flex; align-items:center; justify-content:space-around; gap:8px;
+    padding:12px 14px calc(12px + env(safe-area-inset-bottom,0px)); background:var(--panel);
+    z-index:5;}
+  .bigbtn{flex:1; max-width:200px; padding:13px 10px; border-radius:14px; border:none;
+    font-size:14px; font-weight:600; display:flex; align-items:center; justify-content:center; gap:8px;}
+  #recordBtn{background:var(--accent); color:#1a0d05;}
+  #recordBtn.recording{background:#c8322a; color:#fff;}
+  #resetBtn{background:var(--panel2); color:var(--text); border:1px solid var(--line);}
+  #panel{position:fixed; left:0; right:0; bottom:0; max-height:78vh; background:var(--panel);
+    border-radius:18px 18px 0 0; transform:translateY(100%); transition:transform .28s ease;
+    z-index:20; box-shadow:0 -8px 30px rgba(0,0,0,.5); display:flex; flex-direction:column;}
+  #panel.open{transform:translateY(0);}
+  #panelHead{display:flex; justify-content:space-between; align-items:center; padding:14px 16px 6px;}
+  #panelHead h2{font-size:15px; margin:0;}
+  #panelBody{overflow-y:auto; padding:4px 16px 20px;}
+  .grp{margin-bottom:18px;}
+  .grp h3{font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:var(--sub);
+    margin:0 0 8px;}
+  .row{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;}
+  .row label{font-size:13.5px; flex:1;}
+  select, input[type=range]{accent-color:var(--accent);}
+  select{background:var(--panel2); color:var(--text); border:1px solid var(--line);
+    border-radius:8px; padding:7px 8px; font-size:13px;}
+  input[type=range]{width:120px;}
+  input[type=color]{width:44px; height:30px; border:none; border-radius:8px; background:none; padding:0;}
+  .toggle{position:relative; width:46px; height:26px; background:var(--panel2);
+    border:1px solid var(--line); border-radius:999px; flex-shrink:0;}
+  .toggle input{position:absolute; inset:0; opacity:0; margin:0; cursor:pointer;}
+  .toggle .knob{position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%;
+    background:var(--sub); transition:all .18s;}
+  .toggle input:checked + .knob{background:var(--accent); left:22px;}
+  .closeBtn{background:none; border:none; color:var(--sub); font-size:20px; line-height:1;}
+  #overlayClose{position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:19; opacity:0;
+    pointer-events:none; transition:opacity .25s;}
+  #overlayClose.show{opacity:1; pointer-events:auto;}
+  #playback{position:fixed; inset:0; background:#000; z-index:30; display:none;
+    flex-direction:column;}
+  #playback video{flex:1; width:100%; object-fit:contain; background:#000;}
+  #playbackBar{display:flex; gap:10px; padding:12px 14px calc(12px + env(safe-area-inset-bottom,0px));
+    background:var(--panel);}
+  #playbackBar a, #playbackBar button{flex:1; text-align:center; padding:13px; border-radius:12px;
+    text-decoration:none; font-weight:600; font-size:14px; border:none;}
+  #dlBtn{background:var(--accent); color:#1a0d05;}
+  #shareBtn{background:var(--panel2); color:var(--text); border:1px solid var(--line);}
+  #discardBtn{background:var(--panel2); color:#ff8a80; border:1px solid var(--line);}
+  small.hint{color:var(--sub); font-size:11.5px; display:block; margin-top:2px;}
 </style>
 </head>
 <body>
+<div id="app">
+  <div id="topbar">
+    <div>
+      <h1>Disc Trail Cam</h1>
+      <div class="sub" id="statusLine">Starting camera…</div>
+    </div>
+    <button class="iconbtn" id="settingsBtn">⚙ Settings</button>
+  </div>
 
-<canvas id="board"></canvas>
-<div id="crt"></div>
-<div id="fs-btn">FULLSCREEN</div>
+  <div id="stageWrap">
+    <video id="video" playsinline autoplay muted></video>
+    <canvas id="stage"></canvas>
+    <div id="tapHint">Tap the disc to start tracking</div>
+    <div id="lostBanner">Trail ended — tracking lost</div>
+    <div id="camStatus"><span id="recDot"></span> <span id="resLabel">–</span></div>
+  </div>
 
-<div id="power-overlay">
-  <div class="dot"></div>
-  <div class="big">STORM LED SCOREBOARD</div>
-  <div class="small">TAP / CLICK TO POWER ON</div>
-  <div class="small">(enables fullscreen + sound)</div>
+  <div id="bottombar">
+    <button class="bigbtn" id="resetBtn">↺ Reset Trail</button>
+    <button class="bigbtn" id="recordBtn">● Record</button>
+  </div>
+</div>
+
+<div id="overlayClose"></div>
+<div id="panel">
+  <div id="panelHead">
+    <h2>Camera &amp; Trail Settings</h2>
+    <button class="closeBtn" id="panelCloseBtn">✕</button>
+  </div>
+  <div id="panelBody">
+    <div class="grp">
+      <h3>Camera</h3>
+      <div class="row"><label>Lens</label>
+        <select id="facingSelect">
+          <option value="environment">Back</option>
+          <option value="user">Front</option>
+        </select>
+      </div>
+      <div class="row"><label>Resolution</label>
+        <select id="resSelect">
+          <option value="1280x720">720p</option>
+          <option value="1920x1080" selected>1080p</option>
+          <option value="3840x2160">4K (if supported)</option>
+          <option value="640x480">480p (fastest tracking)</option>
+        </select>
+      </div>
+      <div class="row"><label>Frame rate</label>
+        <select id="fpsSelect">
+          <option value="30" selected>30 fps</option>
+          <option value="60">60 fps (smoother tracking)</option>
+        </select>
+      </div>
+      <div class="row" id="zoomRow" style="display:none;"><label>Zoom</label>
+        <input type="range" id="zoomSlider" min="1" max="8" step="0.1" value="1">
+      </div>
+      <div class="row" id="torchRow" style="display:none;"><label>Flashlight</label>
+        <div class="toggle"><input type="checkbox" id="torchToggle"><div class="knob"></div></div>
+      </div>
+    </div>
+
+    <div class="grp">
+      <h3>Trail</h3>
+      <div class="row"><label>Match disc color</label>
+        <div class="toggle"><input type="checkbox" id="matchColorToggle"><div class="knob"></div></div>
+      </div>
+      <div class="row"><label>Line color</label>
+        <input type="color" id="colorPicker" value="#3ddaff">
+      </div>
+      <div class="row"><label>Line thickness</label>
+        <input type="range" id="thicknessSlider" min="2" max="16" step="1" value="6">
+      </div>
+      <div class="row"><label>Tracking sensitivity</label>
+        <input type="range" id="sensSlider" min="1" max="100" step="1" value="45">
+      </div>
+      <div class="row"><label>Fade older trail</label>
+        <div class="toggle"><input type="checkbox" id="fadeToggle"><div class="knob"></div></div>
+      </div>
+      <small class="hint">If tracking jumps to your hand/arm, raise sensitivity. If it misses a light-colored disc against a bright sky, lower it.</small>
+    </div>
+  </div>
+</div>
+
+<div id="playback">
+  <video id="playbackVideo" playsinline controls></video>
+  <div id="playbackBar">
+    <a id="dlBtn" href="#" download="disc-trail.webm">Save file</a>
+    <button id="shareBtn">Share</button>
+    <button id="discardBtn">Discard</button>
+  </div>
 </div>
 
 <script>
-/* =========================================================================
-   STORM LED SCOREBOARD
-   A retro ~100-pixel-wide LED-matrix style scoreboard for the Campbell
-   River Storm (VIJHL), driven live by the HockeyTech / LeagueStat feed.
+(function(){
+  "use strict";
 
-   ---------------------------------------------------------------------
-   WHAT YOU MIGHT NEED TO TWEAK (read this first, LJ!)
-   ---------------------------------------------------------------------
-   Everything below marked CONFIG is safe to edit. The one part of this
-   file that is a best-effort guess is how "currently on a power play"
-   is detected live (there's no public documentation for this feed, so
-   field names are inferred). Scores, period, clock, and goals are all
-   confirmed working off real HockeyTech data. If the power-play light
-   ever looks wrong during a real game:
-     1. During a live Storm game, open your phone/laptop browser,
-        go to vijhl.com's live scoreboard, open DevTools (F12) -> Network
-        tab, find the request with "feed=gc" and "tab=clock" in the URL.
-     2. Click it, look at the Response, and find whatever field changes
-        when a team is on the power play.
-     3. Send me (Claude) that field name/value and I'll patch the
-        `readPowerPlay()` function below in one edit.
-   Nothing else needs a live game to verify — the rest was tested
-   against real feed data.
-   ========================================================================= */
+  // ---------- DOM ----------
+  const video = document.getElementById('video');
+  const stage = document.getElementById('stage');
+  const ctx = stage.getContext('2d', {willReadFrequently:false});
+  const tapHint = document.getElementById('tapHint');
+  const lostBanner = document.getElementById('lostBanner');
+  const statusLine = document.getElementById('statusLine');
+  const resLabel = document.getElementById('resLabel');
+  const recDot = document.getElementById('recDot');
 
-  // ---------------------------------------------------------------------
-  // CONFIG — your VIJHL / HockeyTech credentials + tunables
-  // ---------------------------------------------------------------------
-  const CONFIG = {
-    HT_KEY:          "4f1a61df18906b61",
-    HT_CLIENT_CODE:  "vijhl",
-    HT_SITE_ID:      "2",
-    HT_SEASON:       "47",
-    HT_LEAGUE_ID:    "1",
-    HT_BASE:         "https://lscluster.hockeytech.com/feed/index.php",
+  const panel = document.getElementById('panel');
+  const overlayClose = document.getElementById('overlayClose');
+  const settingsBtn = document.getElementById('settingsBtn');
+  const panelCloseBtn = document.getElementById('panelCloseBtn');
 
-    STORM_MATCH:     /storm/i,       // how we recognize "our" team by name
-    LOOKAHEAD_DAYS:  21,             // how far ahead to search for the next game
-    LOOKBACK_DAYS:   1,
+  const facingSelect = document.getElementById('facingSelect');
+  const resSelect = document.getElementById('resSelect');
+  const fpsSelect = document.getElementById('fpsSelect');
+  const zoomRow = document.getElementById('zoomRow');
+  const zoomSlider = document.getElementById('zoomSlider');
+  const torchRow = document.getElementById('torchRow');
+  const torchToggle = document.getElementById('torchToggle');
 
-    POLL_SCHEDULE_MS: 30000,         // how often to re-check schedule/scorebar
-    POLL_LIVE_MS:     8000,          // how often to refresh live game data
-    GOAL_ANIM_MS:     10000,         // length of the goal celebration
+  const matchColorToggle = document.getElementById('matchColorToggle');
+  const colorPicker = document.getElementById('colorPicker');
+  const thicknessSlider = document.getElementById('thicknessSlider');
+  const sensSlider = document.getElementById('sensSlider');
+  const fadeToggle = document.getElementById('fadeToggle');
 
-    GRID_W: 100,                     // logical LED columns — "100 pixels across"
-    GRID_H: 44,                      // logical LED rows
+  const resetBtn = document.getElementById('resetBtn');
+  const recordBtn = document.getElementById('recordBtn');
 
-    COLOR_OFF:      "#0a0a0a",
-    COLOR_AMBER:    "#ffb000",
-    COLOR_RED:      "#ff2b2b",
-    COLOR_GREEN:    "#39ff14",
-    COLOR_WHITE:    "#f5f5f5",
-    COLOR_BLUE:     "#39c6ff",
-    COLOR_GOLD:     "#ffd23f",
+  const playback = document.getElementById('playback');
+  const playbackVideo = document.getElementById('playbackVideo');
+  const dlBtn = document.getElementById('dlBtn');
+  const shareBtn = document.getElementById('shareBtn');
+  const discardBtn = document.getElementById('discardBtn');
 
-    TIMEZONE_NOTE: "Assumes the viewer's device clock/timezone matches the arena (Pacific)."
-  };
+  // ---------- State ----------
+  let currentStream = null;
+  let videoTrack = null;
+  let trackW = 176, trackH = 99;          // low-res analysis buffer size
+  let grayPrev = null, grayCurr = null;
+  let smallCanvas = document.createElement('canvas');
+  let smallCtx = smallCanvas.getContext('2d', {willReadFrequently:true});
 
-  // Real VIJHL team logos (scraped from vijhl.com), keyed by a match string
-  // found in the team's name as returned by the feed.
-  const TEAM_LOGOS = [
-    [/storm/i,          "https://www.vijhl.com/wp-content/uploads/sites/2/2025/06/cropped-128674851_cr_bolt_red-scaled-1.png"],
-    [/glacier|comox/i,  "https://www.vijhl.com/wp-content/uploads/sites/2/2024/06/IMG_3154.png"],
-    [/kerry|islanders/i,"https://www.vijhl.com/wp-content/uploads/sites/2/2024/06/MagicEraser_230818_112840.png"],
-    [/kraken|cowichan/i,"https://www.vijhl.com/wp-content/uploads/sites/2/2024/06/MagicEraser_230818_112852.png"],
-    [/buccaneers|nanaimo/i,"https://www.vijhl.com/wp-content/uploads/sites/2/2024/06/BUCSLOGO.png"],
-    [/generals|oceanside/i,"https://www.vijhl.com/wp-content/uploads/sites/2/2024/06/MagicEraser_230818_112946.png"],
-    [/panthers|peninsula/i,"https://www.vijhl.com/wp-content/uploads/sites/2/2025/05/Peninsula-Panthers-scaled.png"],
-    [/bombers|alberni/i,"https://www.vijhl.com/wp-content/uploads/sites/2/2024/06/IMG_3161.png"],
-    [/predators|saanich/i,"https://www.vijhl.com/wp-content/uploads/sites/2/2024/06/MagicEraser_230818_113015.png"],
-    [/cougars|victoria/i,"https://www.vijhl.com/wp-content/uploads/sites/2/2025/08/Victoria-Cougars-nonwhite.png"],
-    [/wolves|westshore/i,"https://www.vijhl.com/wp-content/uploads/sites/2/2024/10/WW-Logo-on-Dark.png"]
-  ];
-  function logoFor(name){
-    if(!name) return null;
-    const hit = TEAM_LOGOS.find(([re]) => re.test(name));
-    return hit ? hit[1] : null;
-  }
+  let tracking = false;
+  let lostFrames = 0;
+  const LOST_LIMIT = 14;                  // frames with no valid match before we call it lost
+  let lastTrackPt = null;                 // {x,y} in track-res coords
+  let smoothPt = null;                    // {x,y} in full-res coords
+  let points = [];                        // [{x,y,t,color?}] full-res, for drawing
+  let currentColor = '#3ddaff';
+  let colorLocked = false;
 
-  // ---------------------------------------------------------------------
-  // 5x7 dot-matrix font (hand-authored bitmap, no external font files)
-  // ---------------------------------------------------------------------
-  const FONT = {
-    "0":["01110","10001","10011","10101","11001","10001","01110"],
-    "1":["00100","01100","00100","00100","00100","00100","01110"],
-    "2":["01110","10001","00001","00010","00100","01000","11111"],
-    "3":["11111","00010","00100","00010","00001","10001","01110"],
-    "4":["00010","00110","01010","10010","11111","00010","00010"],
-    "5":["11111","10000","11110","00001","00001","10001","01110"],
-    "6":["00110","01000","10000","11110","10001","10001","01110"],
-    "7":["11111","00001","00010","00100","01000","01000","01000"],
-    "8":["01110","10001","10001","01110","10001","10001","01110"],
-    "9":["01110","10001","10001","01111","00001","00010","01100"],
-    ":":["00000","00100","00000","00000","00100","00000","00000"],
-    "-":["00000","00000","00000","11111","00000","00000","00000"],
-    " ":["00000","00000","00000","00000","00000","00000","00000"],
-    "A":["01110","10001","10001","11111","10001","10001","10001"],
-    "B":["11110","10001","10001","11110","10001","10001","11110"],
-    "C":["01111","10000","10000","10000","10000","10000","01111"],
-    "D":["11110","10001","10001","10001","10001","10001","11110"],
-    "E":["11111","10000","10000","11110","10000","10000","11111"],
-    "F":["11111","10000","10000","11110","10000","10000","10000"],
-    "G":["01111","10000","10000","10111","10001","10001","01111"],
-    "H":["10001","10001","10001","11111","10001","10001","10001"],
-    "I":["01110","00100","00100","00100","00100","00100","01110"],
-    "J":["00001","00001","00001","00001","00001","10001","01110"],
-    "K":["10001","10010","10100","11000","10100","10010","10001"],
-    "L":["10000","10000","10000","10000","10000","10000","11111"],
-    "M":["10001","11011","10101","10101","10001","10001","10001"],
-    "N":["10001","11001","10101","10101","10011","10001","10001"],
-    "O":["01110","10001","10001","10001","10001","10001","01110"],
-    "P":["11110","10001","10001","11110","10000","10000","10000"],
-    "Q":["01110","10001","10001","10001","10101","10010","01101"],
-    "R":["11110","10001","10001","11110","10100","10010","10001"],
-    "S":["01111","10000","10000","01110","00001","00001","11110"],
-    "T":["11111","00100","00100","00100","00100","00100","00100"],
-    "U":["10001","10001","10001","10001","10001","10001","01110"],
-    "V":["10001","10001","10001","10001","10001","01010","00100"],
-    "W":["10001","10001","10001","10101","10101","10101","01010"],
-    "X":["10001","10001","01010","00100","01010","10001","10001"],
-    "Y":["10001","10001","01010","00100","00100","00100","00100"],
-    "Z":["11111","00001","00010","00100","01000","10000","11111"]
-  };
+  let mediaRecorder = null;
+  let recordedChunks = [];
+  let isRecording = false;
 
-  // ---------------------------------------------------------------------
-  // Canvas / logical grid setup
-  // ---------------------------------------------------------------------
-  const canvas = document.getElementById("board");
-  const ctx = canvas.getContext("2d");
-  const GRID_W = CONFIG.GRID_W, GRID_H = CONFIG.GRID_H;
-  let grid = new Array(GRID_W*GRID_H).fill(null); // null = off, else color string
-  let dotPitch = 10, originX = 0, originY = 0;
-
-  function resize(){
-    canvas.width = window.innerWidth * (window.devicePixelRatio||1);
-    canvas.height = window.innerHeight * (window.devicePixelRatio||1);
-    canvas.style.width = window.innerWidth+"px";
-    canvas.style.height = window.innerHeight+"px";
-    dotPitch = Math.floor(Math.min(canvas.width/GRID_W, canvas.height/GRID_H));
-    originX = Math.floor((canvas.width - dotPitch*GRID_W)/2);
-    originY = Math.floor((canvas.height - dotPitch*GRID_H)/2);
-  }
-  window.addEventListener("resize", resize);
-  resize();
-
-  function clearGrid(){ grid.fill(null); }
-  function setPixel(x,y,color){
-    x=Math.round(x); y=Math.round(y);
-    if(x<0||x>=GRID_W||y<0||y>=GRID_H) return;
-    grid[y*GRID_W+x] = color;
-  }
-  function fillRect(x0,y0,w,h,color){
-    for(let y=y0;y<y0+h;y++) for(let x=x0;x<x0+w;x++) setPixel(x,y,color);
-  }
-
-  // draws text; scale = size multiplier (each font pixel becomes scale x scale LEDs)
-  // returns width consumed in logical LEDs
-  function drawText(text, x, y, color, scale=1, spacing=1){
-    let cx = x;
-    for(const ch of text.toUpperCase()){
-      const glyph = FONT[ch] || FONT[" "];
-      for(let row=0; row<7; row++){
-        for(let col=0; col<5; col++){
-          if(glyph[row][col]==="1"){
-            fillRect(cx+col*scale, y+row*scale, scale, scale, color);
-          }
-        }
-      }
-      cx += (5*scale) + spacing*scale;
+  // ---------- Camera setup ----------
+  async function startCamera(){
+    if(currentStream){
+      currentStream.getTracks().forEach(t=>t.stop());
     }
-    return cx - x;
-  }
-  function textWidth(text, scale=1, spacing=1){
-    return text.length * (5*scale + spacing*scale) - (text.length?spacing*scale:0);
-  }
-
-  // ---------------------------------------------------------------------
-  // Logo handling — downsample real team logos into a small LED-safe grid
-  // ---------------------------------------------------------------------
-  const logoCache = {}; // url -> {ok:bool, cells: [[color,...],...], size:n} | 'pending'
-  function loadLogo(url, size=16){
-    if(!url || logoCache[url]) return;
-    logoCache[url] = "pending";
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      try{
-        const off = document.createElement("canvas");
-        off.width = size; off.height = size;
-        const octx = off.getContext("2d");
-        octx.imageSmoothingEnabled = true;
-        // letterbox the logo into a square
-        const scale = Math.min(size/img.width, size/img.height);
-        const w = img.width*scale, h = img.height*scale;
-        octx.clearRect(0,0,size,size);
-        octx.drawImage(img,(size-w)/2,(size-h)/2,w,h);
-        const data = octx.getImageData(0,0,size,size).data;
-        const cells = [];
-        for(let yy=0; yy<size; yy++){
-          const row = [];
-          for(let xx=0; xx<size; xx++){
-            const i = (yy*size+xx)*4;
-            const a = data[i+3];
-            row.push(a<40 ? null : `rgb(${data[i]},${data[i+1]},${data[i+2]})`);
-          }
-          cells.push(row);
-        }
-        logoCache[url] = {ok:true, cells, size};
-      }catch(e){
-        // canvas got tainted (no CORS header) — fall back to a plain badge
-        logoCache[url] = {ok:false};
+    const [w,h] = resSelect.value.split('x').map(Number);
+    const fps = Number(fpsSelect.value);
+    const constraints = {
+      audio:false,
+      video:{
+        facingMode: {ideal: facingSelect.value},
+        width:{ideal:w}, height:{ideal:h},
+        frameRate:{ideal:fps}
       }
     };
-    img.onerror = () => { logoCache[url] = {ok:false}; };
-    img.src = url;
-  }
-  // draws a cached logo at top-left (x,y) using `size` LEDs square; falls back
-  // to a simple glowing badge with the team's initial if the logo can't be sampled
-  function drawLogo(url, x, y, size, fallbackLetter, fallbackColor){
-    const entry = logoCache[url];
-    if(entry && entry.ok){
-      const s = entry.size;
-      for(let yy=0; yy<s; yy++) for(let xx=0; xx<s; xx++){
-        const c = entry.cells[yy][xx];
-        if(c) setPixel(x+xx, y+yy, c);
-      }
+    try{
+      currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+    }catch(err){
+      statusLine.textContent = 'Camera error: '+err.message;
       return;
     }
-    // fallback badge while loading / on failure
-    for(let yy=0;yy<size;yy++) for(let xx=0;xx<size;xx++){
-      const dx=xx-size/2+0.5, dy=yy-size/2+0.5;
-      if(dx*dx+dy*dy <= (size/2)*(size/2)) setPixel(x+xx,y+yy, fallbackColor||CONFIG.COLOR_AMBER);
-    }
-    if(fallbackLetter){
-      drawText(fallbackLetter, x+Math.floor(size/2)-2, y+Math.floor(size/2)-3, "#000", 1, 0);
-    }
-  }
+    video.srcObject = currentStream;
+    await video.play();
+    videoTrack = currentStream.getVideoTracks()[0];
 
-  // ---------------------------------------------------------------------
-  // HockeyTech fetch helpers
-  // ---------------------------------------------------------------------
-  function htUrl(params){
-    const p = new URLSearchParams({
-      key: CONFIG.HT_KEY,
-      client_code: CONFIG.HT_CLIENT_CODE,
-      site_id: CONFIG.HT_SITE_ID,
-      league_id: CONFIG.HT_LEAGUE_ID,
-      fmt: "json",
-      lang: "en",
-      ...params
+    await new Promise(res=>{
+      if(video.readyState >= 2) return res();
+      video.onloadedmetadata = ()=>res();
     });
-    return `${CONFIG.HT_BASE}?${p.toString()}`;
+
+    stage.width = video.videoWidth;
+    stage.height = video.videoHeight;
+    resLabel.textContent = video.videoWidth+'×'+video.videoHeight;
+    statusLine.textContent = 'Tap the disc to lock tracking';
+
+    trackH = Math.max(60, Math.round(trackW * (video.videoHeight/video.videoWidth)));
+    smallCanvas.width = trackW; smallCanvas.height = trackH;
+    grayPrev = new Uint8ClampedArray(trackW*trackH);
+    grayCurr = new Uint8ClampedArray(trackW*trackH);
+
+    setupZoomTorch();
+    requestAnimationFrame(loop);
   }
-  // tries a normal fetch first (works if the feed sends permissive CORS
-  // headers, which is typical for these embeddable widgets); falls back
-  // to a classic JSONP <script> tag if not.
-  function htFetch(params){
-    const url = htUrl(params);
-    return fetch(url).then(r => {
-      if(!r.ok) throw new Error("bad status "+r.status);
-      return r.json();
-    }).catch(() => jsonp(url));
+
+  function setupZoomTorch(){
+    zoomRow.style.display = 'none';
+    torchRow.style.display = 'none';
+    if(!videoTrack || !videoTrack.getCapabilities) return;
+    let caps;
+    try{ caps = videoTrack.getCapabilities(); }catch(e){ return; }
+    if(caps.zoom){
+      zoomRow.style.display = 'flex';
+      zoomSlider.min = caps.zoom.min; zoomSlider.max = caps.zoom.max;
+      zoomSlider.step = caps.zoom.step || 0.1;
+      zoomSlider.value = caps.zoom.min;
+    }
+    if(caps.torch){
+      torchRow.style.display = 'flex';
+    }
   }
-  let jsonpCounter = 0;
-  function jsonp(url){
-    return new Promise((resolve, reject)=>{
-      const cbName = "htcb_"+(jsonpCounter++);
-      const script = document.createElement("script");
-      let done = false;
-      window[cbName] = (data) => { done=true; resolve(data); cleanup(); };
-      script.onerror = () => { if(!done){ reject(new Error("jsonp failed")); cleanup(); } };
-      function cleanup(){ delete window[cbName]; script.remove(); }
-      script.src = url + "&callback=" + cbName;
-      document.head.appendChild(script);
-      setTimeout(()=>{ if(!done){ reject(new Error("jsonp timeout")); cleanup(); } }, 10000);
+
+  zoomSlider.addEventListener('input', ()=>{
+    if(videoTrack) videoTrack.applyConstraints({advanced:[{zoom:Number(zoomSlider.value)}]}).catch(()=>{});
+  });
+  torchToggle.addEventListener('change', ()=>{
+    if(videoTrack) videoTrack.applyConstraints({advanced:[{torch:torchToggle.checked}]}).catch(()=>{
+      torchToggle.checked = false;
     });
-  }
-
-  // generic helpers for tolerating unknown/undocumented field names
-  function pick(obj, keys, fallback=undefined){
-    if(!obj) return fallback;
-    for(const k of keys){
-      if(obj[k]!==undefined && obj[k]!==null && obj[k]!=="") return obj[k];
-    }
-    return fallback;
-  }
-  // finds the first array of "game-like" objects anywhere in a JSON blob
-  function findGamesArray(node, depth=0){
-    if(depth>6 || node==null) return null;
-    if(Array.isArray(node)){
-      if(node.length && typeof node[0]==="object" &&
-         (("id" in node[0])||("game_id" in node[0])||("ID" in node[0])) )
-        return node;
-    }
-    if(typeof node==="object"){
-      for(const k of Object.keys(node)){
-        const found = findGamesArray(node[k], depth+1);
-        if(found) return found;
-      }
-    }
-    return null;
-  }
-
-  // ---------------------------------------------------------------------
-  // App state
-  // ---------------------------------------------------------------------
-  const state = {
-    mode: "loading",     // loading | next | live | final
-    stormId: null,
-    stormName: "Campbell River Storm",
-    next: null,          // {opponentName, dateMs}
-    live: null,          // {homeName,awayName,homeScore,awayScore,period,periodLabel,clockSec,statusValue,homeIsStorm,homePP,awayPP}
-    lastGoalCounts: null,
-    animUntil: 0,
-    animTeamName: "",
-    animColor: CONFIG.COLOR_RED,
-    lastPollErrorAt: 0
-  };
-
-  async function resolveStormId(){
-    const cached = localStorage.getItem("storm_team_id_v1");
-    if(cached){ state.stormId = cached; return; }
-    try{
-      const data = await htFetch({feed:"modulekit", view:"teamsbyseason", season_id: CONFIG.HT_SEASON});
-      const teams = findGamesArray(data) || [];
-      const hit = teams.find(t => CONFIG.STORM_MATCH.test(pick(t,["name","Name","team_name"],"")));
-      if(hit){
-        state.stormId = String(pick(hit,["id","team_id","ID"]));
-        localStorage.setItem("storm_team_id_v1", state.stormId);
-      }
-    }catch(e){ /* will retry on next poll cycle */ }
-  }
-
-  function toMs(dateStr, timeStr, isoStr){
-    if(isoStr){ const d=new Date(isoStr); if(!isNaN(d)) return d.getTime(); }
-    if(dateStr){
-      const t = timeStr || "00:00:00";
-      const d = new Date(`${dateStr}T${t}`);
-      if(!isNaN(d)) return d.getTime();
-    }
-    return null;
-  }
-
-  async function pollSchedule(){
-    if(!state.stormId){ await resolveStormId(); }
-    if(!state.stormId) return;
-    try{
-      const data = await htFetch({
-        feed:"modulekit", view:"scorebar",
-        numberofdaysback: CONFIG.LOOKBACK_DAYS,
-        numberofdaysahead: CONFIG.LOOKAHEAD_DAYS,
-        season_id: CONFIG.HT_SEASON
-      });
-      const games = findGamesArray(data) || [];
-      const mine = games.filter(g => {
-        const h = String(pick(g,["home_id","Home_id","home_team_id"],""));
-        const v = String(pick(g,["visiting_id","Visiting_id","visitor_id","visiting_team_id"],""));
-        return h===state.stormId || v===state.stormId;
-      });
-      if(!mine.length){ if(state.mode!=="live") state.mode="next"; return; }
-
-      const now = Date.now();
-      let liveGame = null, nextGame = null, bestNextMs = Infinity;
-
-      for(const g of mine){
-        const gId = pick(g,["id","game_id","ID"]);
-        const started = String(pick(g,["started","Started"],"0"))==="1";
-        const statusVal = (pick(g,["status_value","StatusValue","game_status"],"")+"").toLowerCase();
-        const dateStr = pick(g,["date_played","Date","DatePlayed"]);
-        const timeStr = pick(g,["schedule_time","ScheduleTime"]);
-        const isoStr = pick(g,["game_date_iso_8601","date_time_iso"]);
-        const ms = toMs(dateStr, timeStr, isoStr);
-
-        const looksFinal = statusVal.includes("final");
-        const looksLive = started && !looksFinal;
-
-        if(looksLive){ liveGame = {gId, ms}; }
-        else if(ms && ms>now-6*3600000 && ms<bestNextMs){
-          bestNextMs = ms; nextGame = {gId, ms, raw:g};
-        }
-      }
-
-      if(liveGame){
-        state.mode = "live";
-        state.liveGameId = liveGame.gId;
-        await pollLiveGame();
-      } else if(nextGame){
-        state.mode = "next";
-        const g = nextGame.raw;
-        const homeId = String(pick(g,["home_id","Home_id","home_team_id"],""));
-        const homeName = pick(g,["home_team","Home_team","home_name","HomeTeam"],"Home");
-        const awayName = pick(g,["visiting_team","Visiting_team","visitor_name","VisitingTeam"],"Away");
-        const opponentName = (homeId===state.stormId) ? awayName : homeName;
-        state.next = { opponentName, dateMs: nextGame.ms };
-        const url = logoFor(opponentName); if(url) loadLogo(url);
-      }
-    }catch(e){ /* keep last known state; try again next cycle */ }
-  }
-
-  function parseClock(raw){
-    // handles "MM:SS" or "HH:MM:SS" or raw seconds
-    if(raw==null) return 0;
-    if(typeof raw==="number") return raw;
-    const parts = String(raw).split(":").map(n=>parseInt(n,10)||0);
-    if(parts.length===3) return parts[0]*3600+parts[1]*60+parts[2];
-    if(parts.length===2) return parts[0]*60+parts[1];
-    return parseInt(raw,10)||0;
-  }
-  function periodLabel(periodNum, statusVal){
-    if((statusVal||"").toLowerCase().includes("intermission")) return "INT";
-    const n = parseInt(periodNum,10);
-    if(n===1) return "1ST"; if(n===2) return "2ND"; if(n===3) return "3RD";
-    if(n>3) return "OT"; return "-";
-  }
-
-  // best-effort live power-play detector — see notes at top of file
-  function readPowerPlay(meta, penalties, curPeriod, curClockSec){
-    // 1) direct fields some HockeyTech installs expose on the clock feed
-    const direct = pick(meta, ["home_powerplay","visiting_powerplay","home_strength","visiting_strength"]);
-    if(direct!==undefined){
-      return {
-        home: /pp|power/i.test(String(pick(meta,["home_strength"],""))) || pick(meta,["home_powerplay"])==="1",
-        away: /pp|power/i.test(String(pick(meta,["visiting_strength"],""))) || pick(meta,["visiting_powerplay"])==="1"
-      };
-    }
-    // 2) derive from the penalty list: a penalty is "active" if we're still
-    // in the same period and its clock-time-off hasn't passed yet.
-    let home=false, away=false;
-    if(Array.isArray(penalties)){
-      for(const p of penalties){
-        const pPeriod = parseInt(pick(p,["period_id","period"]),10);
-        if(pPeriod !== parseInt(curPeriod,10)) continue;
-        const offSec = parseClock(pick(p,["time_off_formatted","time_off"]));
-        // game clock counts DOWN in most displays; if API's penalty time is
-        // elapsed-time-based this comparison may need flipping — flagged above.
-        if(offSec && curClockSec && offSec > curClockSec){
-          if(String(pick(p,["home"]))==="1") away = true; // other team is short-handed -> home on PP
-          else home = true;
-        }
-      }
-    }
-    return {home, away};
-  }
-
-  async function pollLiveGame(){
-    if(!state.liveGameId) return;
-    try{
-      const data = await htFetch({feed:"gc", tab:"gamesummary", game_id: state.liveGameId});
-      const gc = (data.GC && data.GC.Gamesummary) || findGamesArray(data) || data;
-      const meta = gc.meta || gc;
-      const homeId = String(pick(meta,["home_team","home_team_id"],""));
-      const homeObj = gc.home || {}; const awayObj = gc.visitor || {};
-      const homeName = pick(homeObj,["name"], "Home");
-      const awayName = pick(awayObj,["name"], "Away");
-      const homeIsStorm = String(pick(homeObj,["id","team_id"],"")) === state.stormId;
-
-      const homeScore = parseInt(pick(meta,["home_goal_count"],0),10);
-      const awayScore = parseInt(pick(meta,["visiting_goal_count"],0),10);
-      const period = pick(meta,["period"],1);
-      const clockSec = parseClock(pick(meta,["game_clock"],"0:00"));
-      const statusVal = pick(meta,["status_value"],"");
-      const pp = readPowerPlay(meta, gc.penalties, period, clockSec);
-
-      const prevCounts = state.lastGoalCounts;
-      state.lastGoalCounts = {home:homeScore, away:awayScore};
-      if(prevCounts){
-        if(homeScore > prevCounts.home) triggerGoal(homeName, homeIsStorm);
-        if(awayScore > prevCounts.away) triggerGoal(awayName, !homeIsStorm);
-      }
-
-      state.live = {
-        homeName, awayName, homeScore, awayScore,
-        period, periodLabel: periodLabel(period, statusVal),
-        clockSec, statusVal, homeIsStorm,
-        homePP: pp.home, awayPP: pp.away
-      };
-      loadLogo(logoFor(homeName)); loadLogo(logoFor(awayName));
-
-      if(statusVal.toLowerCase().includes("final")){
-        state.mode = "final";
-      }
-    }catch(e){ /* keep showing last known live state */ }
-  }
-
-  function triggerGoal(teamName, isStorm){
-    state.animUntil = Date.now() + CONFIG.GOAL_ANIM_MS;
-    state.animTeamName = teamName;
-    state.animColor = isStorm ? CONFIG.COLOR_RED : CONFIG.COLOR_BLUE;
-    playHorn();
-  }
-
-  // ---------------------------------------------------------------------
-  // Sound (synthesized, no external audio files) — enabled after power-on tap
-  // ---------------------------------------------------------------------
-  let audioCtx = null;
-  function initAudio(){ try{ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
-  function beep(freq, start, dur, type="square", vol=0.18){
-    if(!audioCtx) return;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = type; osc.frequency.value = freq;
-    gain.gain.setValueAtTime(vol, audioCtx.currentTime+start);
-    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime+start+dur);
-    osc.connect(gain); gain.connect(audioCtx.destination);
-    osc.start(audioCtx.currentTime+start);
-    osc.stop(audioCtx.currentTime+start+dur+0.05);
-  }
-  function playHorn(){
-    if(!audioCtx) return;
-    beep(220,0,0.9,"sawtooth",0.22);
-    beep(165,0,0.9,"sawtooth",0.18);
-    beep(220,1.0,0.9,"sawtooth",0.22);
-    beep(165,1.0,0.9,"sawtooth",0.18);
-  }
-
-  // ---------------------------------------------------------------------
-  // Scene renderers
-  // ---------------------------------------------------------------------
-  function centerText(text, y, color, scale, spacing=1){
-    const w = textWidth(text, scale, spacing);
-    drawText(text, Math.round((GRID_W-w)/2), y, color, scale, spacing);
-  }
-
-  function renderNext(){
-    clearGrid();
-    centerText("NEXT STORM GAME", 2, CONFIG.COLOR_AMBER, 1);
-    const opp = state.next ? state.next.opponentName : "TBD";
-    const url = state.next ? logoFor(opp) : null;
-    if(url) drawLogo(url, GRID_W/2-9, 10, 18, opp[0], CONFIG.COLOR_RED);
-
-    let remain = state.next ? Math.max(0, state.next.dateMs - Date.now()) : 0;
-    const d = Math.floor(remain/86400000);
-    const h = Math.floor(remain%86400000/3600000);
-    const m = Math.floor(remain%3600000/60000);
-    const s = Math.floor(remain%60000/1000);
-    const cd = `${d}D ${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
-    centerText(cd, 30, CONFIG.COLOR_GREEN, 2);
-    centerText(`VS ${opp}`.slice(0,20), 39, CONFIG.COLOR_WHITE, 1);
-  }
-
-  function renderLive(){
-    const L = state.live;
-    clearGrid();
-    if(!L){ centerText("LOADING...", 20, CONFIG.COLOR_AMBER, 1); return; }
-
-    const homeUrl = logoFor(L.homeName), awayUrl = logoFor(L.awayName);
-    if(homeUrl) drawLogo(homeUrl, 2, 1, 14, L.homeName[0], CONFIG.COLOR_RED);
-    if(awayUrl) drawLogo(awayUrl, GRID_W-16, 1, 14, L.awayName[0], CONFIG.COLOR_BLUE);
-
-    // big score
-    const scoreStr = `${L.homeScore}-${L.awayScore}`;
-    centerText(scoreStr, 11, CONFIG.COLOR_WHITE, 4, 1);
-
-    // team codes under score
-    const homeCode = (L.homeName||"HOME").slice(0,3).toUpperCase();
-    const awayCode = (L.awayName||"AWAY").slice(0,3).toUpperCase();
-    drawText(homeCode, 18, 34, CONFIG.COLOR_RED, 1);
-    drawText(awayCode, GRID_W-18-textWidth(awayCode,1), 34, CONFIG.COLOR_BLUE, 1);
-
-    // period + clock
-    const mm = Math.floor(L.clockSec/60), ss = L.clockSec%60;
-    const clockStr = `${L.periodLabel} ${String(mm).padStart(2,"0")}:${String(ss).padStart(2,"0")}`;
-    centerText(clockStr, 34, CONFIG.COLOR_AMBER, 1);
-
-    // power play lights
-    if(L.homePP) fillRect(18,42,3,2,CONFIG.COLOR_GOLD);
-    if(L.awayPP) fillRect(GRID_W-21,42,3,2,CONFIG.COLOR_GOLD);
-    if(L.homePP||L.awayPP) centerText("PP", 42, CONFIG.COLOR_GOLD, 1);
-  }
-
-  function renderFinal(){
-    const L = state.live;
-    clearGrid();
-    centerText("FINAL", 4, CONFIG.COLOR_RED, 2);
-    if(L){
-      centerText(`${L.homeName.slice(0,10)} ${L.homeScore}`, 18, CONFIG.COLOR_WHITE, 1);
-      centerText(`${L.awayName.slice(0,10)} ${L.awayScore}`, 27, CONFIG.COLOR_WHITE, 1);
-    }
-  }
-
-  // 10-second retro goal celebration
-  function renderGoal(){
-    const progress = 1 - Math.max(0, state.animUntil - Date.now())/CONFIG.GOAL_ANIM_MS;
-    clearGrid();
-    const t = Date.now()/120;
-
-    if(progress < 0.04){
-      // camera-flash frame
-      for(let i=0;i<grid.length;i++) grid[i]="#ffffff";
-    } else {
-      // flashing background pulses
-      const pulseOn = Math.floor(t)%2===0;
-      const bg = pulseOn ? state.animColor : CONFIG.COLOR_OFF;
-      for(let y=0;y<GRID_H;y++) for(let x=0;x<GRID_W;x++){
-        if((x+y+Math.floor(t))%9===0) setPixel(x,y,bg);
-      }
-      // sparkle twinkles
-      for(let i=0;i<60;i++){
-        const x = Math.floor((Math.sin(i*999+t)*0.5+0.5)*GRID_W);
-        const y = Math.floor((Math.cos(i*555+t*1.3)*0.5+0.5)*GRID_H);
-        setPixel(x,y, Math.random()>0.5 ? CONFIG.COLOR_GOLD : CONFIG.COLOR_WHITE);
-      }
-      const scale = 3 + (Math.sin(t*2)>0 ? 1:0);
-      centerText("GOAL", 6, CONFIG.COLOR_WHITE, scale, 1);
-      const url = logoFor(state.animTeamName);
-      if(url) drawLogo(url, GRID_W/2-11, 18, 22, state.animTeamName[0], state.animColor);
-      centerText((state.animTeamName||"").slice(0,18), 40, state.animColor===CONFIG.COLOR_RED?CONFIG.COLOR_RED:CONFIG.COLOR_BLUE, 1);
-    }
-  }
-
-  // ---------------------------------------------------------------------
-  // Main draw loop
-  // ---------------------------------------------------------------------
-  function draw(){
-    if(Date.now() < state.animUntil){
-      renderGoal();
-    } else if(state.mode==="live"){
-      renderLive();
-    } else if(state.mode==="final"){
-      renderFinal();
-    } else if(state.mode==="next"){
-      renderNext();
-    } else {
-      clearGrid();
-      centerText("POWERING ON...", 20, CONFIG.COLOR_AMBER, 1);
-    }
-    paint();
-    requestAnimationFrame(draw);
-  }
-  function paint(){
-    ctx.fillStyle = "#000"; ctx.fillRect(0,0,canvas.width,canvas.height);
-    const r = dotPitch*0.42;
-    for(let y=0;y<GRID_H;y++){
-      for(let x=0;x<GRID_W;x++){
-        const c = grid[y*GRID_W+x];
-        const cx = originX + x*dotPitch + dotPitch/2;
-        const cy = originY + y*dotPitch + dotPitch/2;
-        ctx.beginPath();
-        ctx.fillStyle = c || CONFIG.COLOR_OFF;
-        ctx.globalAlpha = c ? 1 : 0.5;
-        ctx.arc(cx,cy,r,0,Math.PI*2);
-        ctx.fill();
-        if(c){
-          ctx.globalAlpha = 0.25;
-          ctx.beginPath();
-          ctx.arc(cx,cy,r*1.8,0,Math.PI*2);
-          ctx.fill();
-        }
-        ctx.globalAlpha = 1;
-      }
-    }
-  }
-
-  // ---------------------------------------------------------------------
-  // Polling loop
-  // ---------------------------------------------------------------------
-  async function scheduleLoop(){
-    await pollSchedule();
-    setTimeout(scheduleLoop, CONFIG.POLL_SCHEDULE_MS);
-  }
-  async function liveLoop(){
-    if(state.mode==="live") await pollLiveGame();
-    setTimeout(liveLoop, CONFIG.POLL_LIVE_MS);
-  }
-
-  // ---------------------------------------------------------------------
-  // Power-on overlay: enables fullscreen + audio on first tap (browser
-  // requirement), then boots the data loops.
-  // ---------------------------------------------------------------------
-  const overlay = document.getElementById("power-overlay");
-  overlay.addEventListener("click", () => {
-    initAudio();
-    if(document.documentElement.requestFullscreen){
-      document.documentElement.requestFullscreen().catch(()=>{});
-    }
-    overlay.style.display = "none";
-    scheduleLoop();
-    liveLoop();
-    requestAnimationFrame(draw);
-  }, {once:true});
-
-  document.getElementById("fs-btn").addEventListener("click", ()=>{
-    if(document.fullscreenElement){ document.exitFullscreen(); }
-    else if(document.documentElement.requestFullscreen){ document.documentElement.requestFullscreen().catch(()=>{}); }
+  });
+  [facingSelect, resSelect, fpsSelect].forEach(el=>{
+    el.addEventListener('change', ()=>{ resetTrailState(); startCamera(); });
   });
 
-  // draw a static "powering on" placeholder frame immediately, before tap
-  draw_once();
-  function draw_once(){ clearGrid(); centerText("TAP TO START", 20, CONFIG.COLOR_AMBER, 1); paint(); }
+  // ---------- Panel open/close ----------
+  function openPanel(){ panel.classList.add('open'); overlayClose.classList.add('show'); }
+  function closePanel(){ panel.classList.remove('open'); overlayClose.classList.remove('show'); }
+  settingsBtn.addEventListener('click', openPanel);
+  panelCloseBtn.addEventListener('click', closePanel);
+  overlayClose.addEventListener('click', closePanel);
 
+  // ---------- Tap to lock tracking ----------
+  stage.addEventListener('pointerdown', (e)=>{
+    const rect = stage.getBoundingClientRect();
+    const sx = (e.clientX - rect.left) / rect.width * stage.width;
+    const sy = (e.clientY - rect.top) / rect.height * stage.height;
+    lockTrackingAt(sx, sy);
+  });
+
+  function lockTrackingAt(fullX, fullY){
+    const scaleX = trackW/stage.width, scaleY = trackH/stage.height;
+    lastTrackPt = {x: fullX*scaleX, y: fullY*scaleY};
+    smoothPt = {x: fullX, y: fullY};
+    points = [{x:fullX, y:fullY, t:performance.now()}];
+    tracking = true;
+    lostFrames = 0;
+    colorLocked = false;
+    lostBanner.classList.remove('show');
+    tapHint.style.opacity = '0';
+    statusLine.textContent = 'Tracking…';
+    sampleColorAt(Math.round(lastTrackPt.x), Math.round(lastTrackPt.y));
+  }
+
+  function resetTrailState(){
+    tracking = false;
+    points = [];
+    lastTrackPt = null; smoothPt = null;
+    lostFrames = 0; colorLocked = false;
+    lostBanner.classList.remove('show');
+    tapHint.style.opacity = '1';
+    statusLine.textContent = 'Tap the disc to lock tracking';
+  }
+  resetBtn.addEventListener('click', resetTrailState);
+
+  // ---------- Color sampling from the low-res color buffer ----------
+  function sampleColorAt(cx, cy){
+    if(matchColorToggle.checked === false) return;
+    const data = smallCtx.getImageData(0,0,trackW,trackH).data;
+    let r=0,g=0,b=0,n=0;
+    for(let dy=-3; dy<=3; dy++){
+      for(let dx=-3; dx<=3; dx++){
+        const x = cx+dx, y = cy+dy;
+        if(x<0||y<0||x>=trackW||y>=trackH) continue;
+        const i = (y*trackW+x)*4;
+        r+=data[i]; g+=data[i+1]; b+=data[i+2]; n++;
+      }
+    }
+    if(n===0) return;
+    r=Math.round(r/n); g=Math.round(g/n); b=Math.round(b/n);
+    currentColor = 'rgb('+r+','+g+','+b+')';
+    colorLocked = true;
+  }
+
+  // ---------- Connected components on motion mask ----------
+  // mask: Uint8Array length trackW*trackH, 1 = motion pixel
+  function findBlobs(mask){
+    const W=trackW, H=trackH;
+    const visited = new Uint8Array(W*H);
+    const blobs = [];
+    const stack = new Int32Array(W*H);
+    for(let idx=0; idx<W*H; idx++){
+      if(!mask[idx] || visited[idx]) continue;
+      let sp=0; stack[sp++]=idx; visited[idx]=1;
+      let sumX=0, sumY=0, count=0;
+      let minX=W, maxX=0, minY=H, maxY=0;
+      while(sp>0){
+        const cur = stack[--sp];
+        const cx = cur % W, cy = (cur/W)|0;
+        sumX+=cx; sumY+=cy; count++;
+        if(cx<minX)minX=cx; if(cx>maxX)maxX=cx;
+        if(cy<minY)minY=cy; if(cy>maxY)maxY=cy;
+        // 4-neighbors
+        if(cx>0){ const n=cur-1; if(mask[n] && !visited[n]){visited[n]=1; stack[sp++]=n;} }
+        if(cx<W-1){ const n=cur+1; if(mask[n] && !visited[n]){visited[n]=1; stack[sp++]=n;} }
+        if(cy>0){ const n=cur-W; if(mask[n] && !visited[n]){visited[n]=1; stack[sp++]=n;} }
+        if(cy<H-1){ const n=cur+W; if(mask[n] && !visited[n]){visited[n]=1; stack[sp++]=n;} }
+      }
+      blobs.push({
+        x:sumX/count, y:sumY/count, area:count,
+        w:maxX-minX+1, h:maxY-minY+1
+      });
+    }
+    return blobs;
+  }
+
+  // ---------- Main loop ----------
+  let lastFrameTime = performance.now();
+  function loop(){
+    if(video.readyState >= 2 && video.videoWidth>0){
+      // draw the visible/recorded frame
+      ctx.drawImage(video, 0, 0, stage.width, stage.height);
+
+      // draw low-res copy for analysis + color sampling
+      smallCtx.drawImage(video, 0, 0, trackW, trackH);
+      const imgData = smallCtx.getImageData(0,0,trackW,trackH);
+      const d = imgData.data;
+      for(let p=0, i=0; i<d.length; i+=4, p++){
+        grayCurr[p] = (d[i]*0.299 + d[i+1]*0.587 + d[i+2]*0.114) | 0;
+      }
+
+      if(tracking && grayPrev){
+        const threshold = 8 + (100-Number(sensSlider.value))*0.8; // lower slider->more sensitive->lower threshold
+        const mask = new Uint8Array(trackW*trackH);
+        let changed = 0;
+        for(let p=0; p<mask.length; p++){
+          if(Math.abs(grayCurr[p]-grayPrev[p]) > threshold){ mask[p]=1; changed++; }
+        }
+        const totalPx = trackW*trackH;
+        let matchedBlob = null;
+        if(changed < totalPx*0.45){ // reject whole-frame lighting shifts / big shake
+          const blobs = findBlobs(mask);
+          const minArea = 3, maxArea = totalPx*0.15;
+          let bestDist = Infinity;
+          for(const b of blobs){
+            if(b.area < minArea || b.area > maxArea) continue;
+            const aspect = b.w / Math.max(1,b.h);
+            if(aspect < 0.35 || aspect > 2.8) continue; // reject long thin arm-like blobs
+            const dx = b.x - lastTrackPt.x, dy = b.y - lastTrackPt.y;
+            const dist = Math.sqrt(dx*dx+dy*dy);
+            const maxJump = trackW*0.35; // gate: disc can't teleport across frame in one tick
+            if(dist > maxJump) continue;
+            if(dist < bestDist){ bestDist = dist; matchedBlob = b; }
+          }
+        }
+
+        if(matchedBlob){
+          lastTrackPt = {x:matchedBlob.x, y:matchedBlob.y};
+          lostFrames = 0;
+          const scaleX = stage.width/trackW, scaleY = stage.height/trackH;
+          const fx = matchedBlob.x*scaleX, fy = matchedBlob.y*scaleY;
+          const alpha = 0.45; // exponential smoothing factor
+          smoothPt = {
+            x: smoothPt.x + (fx-smoothPt.x)*alpha,
+            y: smoothPt.y + (fy-smoothPt.y)*alpha
+          };
+          points.push({x:smoothPt.x, y:smoothPt.y, t:performance.now()});
+          if(!colorLocked) sampleColorAt(Math.round(matchedBlob.x), Math.round(matchedBlob.y));
+        } else {
+          lostFrames++;
+          if(lostFrames > LOST_LIMIT){
+            tracking = false;
+            lostBanner.classList.add('show');
+            statusLine.textContent = 'Trail ended — tap to start a new one';
+          }
+        }
+      }
+
+      // swap gray buffers
+      const tmp = grayPrev; grayPrev = grayCurr; grayCurr = tmp || new Uint8ClampedArray(trackW*trackH);
+
+      drawTrail();
+    }
+    requestAnimationFrame(loop);
+  }
+
+  // Smooth freehand-style line through recorded points (midpoint quadratic technique)
+  function drawTrail(){
+    if(points.length < 2) return;
+    const thickness = Number(thicknessSlider.value);
+    const useMatch = matchColorToggle.checked;
+    const baseColor = useMatch ? currentColor : colorPicker.value;
+    const fade = fadeToggle.checked;
+    const now = performance.now();
+    const FADE_MS = 3500;
+
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+
+    for(let i=1; i<points.length-1; i++){
+      const p0 = points[i-1], p1 = points[i], p2 = points[i+1];
+      const midA = {x:(p0.x+p1.x)/2, y:(p0.y+p1.y)/2};
+      const midB = {x:(p1.x+p2.x)/2, y:(p1.y+p2.y)/2};
+
+      let alpha = 1;
+      if(fade){
+        const age = now - p1.t;
+        alpha = Math.max(0.08, 1 - age/FADE_MS);
+      }
+      ctx.strokeStyle = baseColor;
+      ctx.globalAlpha = alpha;
+      ctx.lineWidth = thickness;
+      ctx.beginPath();
+      ctx.moveTo(midA.x, midA.y);
+      ctx.quadraticCurveTo(p1.x, p1.y, midB.x, midB.y);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    if(fade){
+      // drop points that are fully faded so the array doesn't grow forever
+      while(points.length && (now - points[0].t) > FADE_MS + 500){
+        points.shift();
+      }
+    }
+  }
+
+  // ---------- Recording ----------
+  function pickMimeType(){
+    const options = [
+      'video/webm;codecs=vp9',
+      'video/webm;codecs=vp8',
+      'video/webm',
+      'video/mp4'
+    ];
+    for(const o of options){
+      if(window.MediaRecorder && MediaRecorder.isTypeSupported(o)) return o;
+    }
+    return '';
+  }
+
+  recordBtn.addEventListener('click', ()=>{
+    if(!isRecording) startRecording(); else stopRecording();
+  });
+
+  function startRecording(){
+    const fps = Number(fpsSelect.value);
+    const canvasStream = stage.captureStream(fps);
+    const mimeType = pickMimeType();
+    try{
+      mediaRecorder = mimeType ? new MediaRecorder(canvasStream, {mimeType}) : new MediaRecorder(canvasStream);
+    }catch(e){
+      alert('Recording is not supported in this browser.');
+      return;
+    }
+    recordedChunks = [];
+    mediaRecorder.ondataavailable = (e)=>{ if(e.data && e.data.size>0) recordedChunks.push(e.data); };
+    mediaRecorder.onstop = onRecordingStopped;
+    mediaRecorder.start(200);
+    isRecording = true;
+    recordBtn.textContent = '■ Stop';
+    recordBtn.classList.add('recording');
+    recDot.classList.add('on');
+  }
+
+  function stopRecording(){
+    if(mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+    isRecording = false;
+    recordBtn.textContent = '● Record';
+    recordBtn.classList.remove('recording');
+    recDot.classList.remove('on');
+  }
+
+  function onRecordingStopped(){
+    const type = mediaRecorder.mimeType || 'video/webm';
+    const blob = new Blob(recordedChunks, {type});
+    const url = URL.createObjectURL(blob);
+    playbackVideo.src = url;
+    const ext = type.includes('mp4') ? 'mp4' : 'webm';
+    dlBtn.href = url;
+    dlBtn.download = 'disc-trail.'+ext;
+    playback.style.display = 'flex';
+
+    shareBtn.onclick = async ()=>{
+      try{
+        const file = new File([blob], 'disc-trail.'+ext, {type});
+        if(navigator.canShare && navigator.canShare({files:[file]})){
+          await navigator.share({files:[file], title:'Disc Trail'});
+        } else {
+          alert('Direct share is not supported here — use Save file instead.');
+        }
+      }catch(e){ /* user cancelled share, ignore */ }
+    };
+  }
+
+  discardBtn.addEventListener('click', ()=>{
+    playback.style.display = 'none';
+    playbackVideo.pause();
+    playbackVideo.removeAttribute('src');
+    playbackVideo.load();
+  });
+
+  // ---------- Boot ----------
+  matchColorToggle.addEventListener('change', ()=>{ colorLocked = false; });
+  startCamera();
+})();
 </script>
 </body>
 </html>
