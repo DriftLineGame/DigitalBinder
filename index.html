@@ -156,7 +156,7 @@
         <input type="color" id="colorPicker" value="#3ddaff">
       </div>
       <div class="row"><label>Line thickness</label>
-        <input type="range" id="thicknessSlider" min="4" max="40" step="1" value="16">
+        <input type="range" id="thicknessSlider" min="4" max="48" step="1" value="24">
       </div>
       <div class="row"><label>Trail opacity</label>
         <input type="range" id="opacitySlider" min="0.15" max="1" step="0.05" value="0.65">
@@ -167,7 +167,7 @@
       <div class="row"><label>Fade older trail</label>
         <div class="toggle"><input type="checkbox" id="fadeToggle"><div class="knob"></div></div>
       </div>
-      <small class="hint">If tracking jumps to your hand/arm, raise sensitivity. If it misses a light-colored disc against a bright sky, lower it.</small>
+      <small class="hint">The box shows exactly what's locked on — cyan/solid means confirmed, orange/dashed means it's coasting on a predicted position. If it locks onto the wrong thing, tap Reset Trail and tap the disc again. Raise sensitivity if the lock keeps dropping; lower it if it drifts onto the background.</small>
     </div>
   </div>
 </div>
@@ -228,7 +228,6 @@
   let currentStream = null;
   let videoTrack = null;
   let trackW = 208, trackH = 117;         // low-res analysis buffer size
-  let grayPrev = null, grayCurr = null;
   let smallCanvas = document.createElement('canvas');
   let smallCtx = smallCanvas.getContext('2d', {willReadFrequently:true});
 
@@ -238,6 +237,9 @@
   let lastTrackPt = null;                 // {x,y} in track-res coords — actual or coasted
   let trackVel = {x:0, y:0};              // estimated per-frame velocity, track-res coords
   let smoothPt = null;                    // {x,y} in full-res coords
+  let template = null;                    // captured appearance patch of the locked-on object
+  let templateSize = 9;                   // side length (track-res px) of the template patch
+  let lastMatchWasConfirmed = false;      // for the lock-box color (locked vs. coasting)
   let points = [];                        // [{x,y,t,color?}] full-res, for drawing
   let currentColor = '#3ddaff';
   let colorLocked = false;
@@ -283,8 +285,7 @@
 
     trackH = Math.max(60, Math.round(trackW * (video.videoHeight/video.videoWidth)));
     smallCanvas.width = trackW; smallCanvas.height = trackH;
-    grayPrev = new Uint8ClampedArray(trackW*trackH);
-    grayCurr = new Uint8ClampedArray(trackW*trackH);
+    templateSize = Math.max(6, Math.round(trackW*0.045));
 
     setupZoomTorch();
     requestAnimationFrame(loop);
@@ -343,10 +344,15 @@
     tracking = true;
     lostFrames = 0;
     colorLocked = false;
+    lastMatchWasConfirmed = true;
     lostBanner.classList.remove('show');
     tapHint.style.opacity = '0';
-    statusLine.textContent = 'Tracking…';
-    sampleColorAt(Math.round(lastTrackPt.x), Math.round(lastTrackPt.y));
+    statusLine.textContent = 'Locked — tracking…';
+
+    smallCtx.drawImage(video, 0, 0, trackW, trackH);
+    const colorData = smallCtx.getImageData(0,0,trackW,trackH).data;
+    template = sampleTemplate(colorData, trackW, trackH, Math.round(lastTrackPt.x), Math.round(lastTrackPt.y), templateSize);
+    sampleColorAt(colorData, Math.round(lastTrackPt.x), Math.round(lastTrackPt.y));
   }
 
   function resetTrailState(){
@@ -354,6 +360,7 @@
     points = [];
     lastTrackPt = null; smoothPt = null;
     trackVel = {x:0, y:0};
+    template = null;
     lostFrames = 0; colorLocked = false;
     lostBanner.classList.remove('show');
     tapHint.style.opacity = '1';
@@ -361,17 +368,16 @@
   }
   resetBtn.addEventListener('click', resetTrailState);
 
-  // ---------- Color sampling from the low-res color buffer ----------
-  function sampleColorAt(cx, cy){
+  // ---------- Color sampling from a supplied low-res color buffer ----------
+  function sampleColorAt(colorData, cx, cy){
     if(matchColorToggle.checked === false) return;
-    const data = smallCtx.getImageData(0,0,trackW,trackH).data;
     let r=0,g=0,b=0,n=0;
     for(let dy=-3; dy<=3; dy++){
       for(let dx=-3; dx<=3; dx++){
         const x = cx+dx, y = cy+dy;
         if(x<0||y<0||x>=trackW||y>=trackH) continue;
         const i = (y*trackW+x)*4;
-        r+=data[i]; g+=data[i+1]; b+=data[i+2]; n++;
+        r+=colorData[i]; g+=colorData[i+1]; b+=colorData[i+2]; n++;
       }
     }
     if(n===0) return;
@@ -380,67 +386,43 @@
     colorLocked = true;
   }
 
-  // ---------- Connected components on motion mask ----------
-  // mask: Uint8Array length trackW*trackH, 1 = motion pixel
-  function findBlobs(mask){
-    const W=trackW, H=trackH;
-    const visited = new Uint8Array(W*H);
-    const blobs = [];
-    const stack = new Int32Array(W*H);
-    for(let idx=0; idx<W*H; idx++){
-      if(!mask[idx] || visited[idx]) continue;
-      let sp=0; stack[sp++]=idx; visited[idx]=1;
-      let sumX=0, sumY=0, count=0;
-      let minX=W, maxX=0, minY=H, maxY=0;
-      while(sp>0){
-        const cur = stack[--sp];
-        const cx = cur % W, cy = (cur/W)|0;
-        sumX+=cx; sumY+=cy; count++;
-        if(cx<minX)minX=cx; if(cx>maxX)maxX=cx;
-        if(cy<minY)minY=cy; if(cy>maxY)maxY=cy;
-        // 4-neighbors
-        if(cx>0){ const n=cur-1; if(mask[n] && !visited[n]){visited[n]=1; stack[sp++]=n;} }
-        if(cx<W-1){ const n=cur+1; if(mask[n] && !visited[n]){visited[n]=1; stack[sp++]=n;} }
-        if(cy>0){ const n=cur-W; if(mask[n] && !visited[n]){visited[n]=1; stack[sp++]=n;} }
-        if(cy<H-1){ const n=cur+W; if(mask[n] && !visited[n]){visited[n]=1; stack[sp++]=n;} }
+  // ---------- Appearance-based template tracking ----------
+  // Instead of asking "what moved this frame" (which is unreliable on a
+  // handheld/shaky camera — the whole scene "moves" then), we ask "where does
+  // the patch of pixels we tapped on now best match". This is what a phone
+  // camera's subject-lock box does, in miniature.
+  function sampleTemplate(colorData, W, H, cx, cy, size){
+    const half = size >> 1;
+    const t = new Float32Array(size*size*3);
+    let k = 0;
+    for(let dy=0; dy<size; dy++){
+      for(let dx=0; dx<size; dx++){
+        let x = cx - half + dx, y = cy - half + dy;
+        x = Math.max(0, Math.min(W-1, x));
+        y = Math.max(0, Math.min(H-1, y));
+        const i = (y*W+x)*4;
+        t[k++] = colorData[i]; t[k++] = colorData[i+1]; t[k++] = colorData[i+2];
       }
-      blobs.push({
-        x:sumX/count, y:sumY/count, area:count,
-        w:maxX-minX+1, h:maxY-minY+1
-      });
     }
-    return mergeCloseBlobs(blobs);
+    return t;
   }
 
-  // A spinning/glinting disc often fractures into 2-3 separate blobs one frame
-  // to the next. Merge blobs that are close together into a single weighted blob
-  // so the centroid stays stable instead of jumping between fragments.
-  function mergeCloseBlobs(blobs){
-    const merged = [];
-    const used = new Uint8Array(blobs.length);
-    const mergeDist = trackW * 0.06;
-    for(let i=0; i<blobs.length; i++){
-      if(used[i]) continue;
-      let b = {...blobs[i]};
-      used[i] = 1;
-      for(let j=i+1; j<blobs.length; j++){
-        if(used[j]) continue;
-        const dx = blobs[j].x - b.x, dy = blobs[j].y - b.y;
-        if(Math.sqrt(dx*dx+dy*dy) < mergeDist){
-          const totalArea = b.area + blobs[j].area;
-          b = {
-            x: (b.x*b.area + blobs[j].x*blobs[j].area) / totalArea,
-            y: (b.y*b.area + blobs[j].y*blobs[j].area) / totalArea,
-            area: totalArea,
-            w: Math.max(b.w, blobs[j].w),
-            h: Math.max(b.h, blobs[j].h)
-          };
-          used[j] = 1;
-        }
+  // Average per-channel absolute difference between the template and the
+  // patch centered at (cx,cy) in the current frame. Lower = better match.
+  function templateDiffAt(colorData, W, H, cx, cy, tmpl, size){
+    const half = size >> 1;
+    if(cx-half < 0 || cy-half < 0 || cx+half >= W || cy+half >= H) return Infinity;
+    let sum = 0, k = 0;
+    for(let dy=0; dy<size; dy++){
+      const y = cy - half + dy;
+      for(let dx=0; dx<size; dx++){
+        const x = cx - half + dx;
+        const i = (y*W+x)*4;
+        sum += Math.abs(colorData[i]-tmpl[k]) + Math.abs(colorData[i+1]-tmpl[k+1]) + Math.abs(colorData[i+2]-tmpl[k+2]);
+        k += 3;
       }
-      merged.push(b);
     }
-    return merged;
+    return sum / (size*size*3);
   }
 
   // ---------- Main loop ----------
@@ -450,24 +432,12 @@
       // draw the visible/recorded frame
       ctx.drawImage(video, 0, 0, stage.width, stage.height);
 
-      // draw low-res copy for analysis + color sampling
+      // draw low-res color copy for tracking + color sampling
       smallCtx.drawImage(video, 0, 0, trackW, trackH);
-      const imgData = smallCtx.getImageData(0,0,trackW,trackH);
-      const d = imgData.data;
-      for(let p=0, i=0; i<d.length; i+=4, p++){
-        grayCurr[p] = (d[i]*0.299 + d[i+1]*0.587 + d[i+2]*0.114) | 0;
-      }
+      const colorData = smallCtx.getImageData(0,0,trackW,trackH).data;
 
-      if(tracking && grayPrev){
-        const threshold = 6 + (100-Number(sensSlider.value))*0.55; // lower slider->more sensitive->lower threshold
-        const mask = new Uint8Array(trackW*trackH);
-        let changed = 0;
-        for(let p=0; p<mask.length; p++){
-          if(Math.abs(grayCurr[p]-grayPrev[p]) > threshold){ mask[p]=1; changed++; }
-        }
-        const totalPx = trackW*trackH;
-
-        // Predict where the disc should be this frame from its recent velocity,
+      if(tracking && template){
+        // Predict where the object should be this frame from its recent velocity,
         // and search around that predicted point rather than the last fixed spot —
         // this is what keeps a fast throw from "glitching" off between frames.
         const predicted = {
@@ -475,40 +445,54 @@
           y: Math.min(trackH-1, Math.max(0, lastTrackPt.y + trackVel.y))
         };
         const speed = Math.sqrt(trackVel.x*trackVel.x + trackVel.y*trackVel.y);
-        const maxJump = Math.min(trackW*0.5, 20 + speed*2.5);
+        const searchRadius = Math.round(Math.min(trackW*0.45, 14 + speed*2.2));
 
-        let matchedBlob = null;
-        if(changed < totalPx*0.5){ // reject whole-frame lighting shifts / big shake
-          const blobs = findBlobs(mask);
-          const minArea = Math.max(4, Math.round(totalPx*0.0007)), maxArea = totalPx*0.18;
-          let bestDist = Infinity;
-          for(const b of blobs){
-            if(b.area < minArea || b.area > maxArea) continue;
-            const aspect = b.w / Math.max(1,b.h);
-            if(aspect < 0.3 || aspect > 3.2) continue; // reject long thin arm-like blobs
-            const dx = b.x - predicted.x, dy = b.y - predicted.y;
-            const dist = Math.sqrt(dx*dx+dy*dy);
-            if(dist > maxJump) continue;
-            if(dist < bestDist){ bestDist = dist; matchedBlob = b; }
+        // Slide the template over the search window and keep the best (lowest
+        // difference) match — a small appearance search, not a motion search,
+        // so handheld camera shake doesn't fake out the tracker.
+        let bestDiff = Infinity, bestX = predicted.x, bestY = predicted.y;
+        const half = templateSize >> 1;
+        const px = Math.round(predicted.x), py = Math.round(predicted.y);
+        for(let dy=-searchRadius; dy<=searchRadius; dy+=2){
+          const cy = py+dy;
+          if(cy-half < 0 || cy+half >= trackH) continue;
+          for(let dx=-searchRadius; dx<=searchRadius; dx+=2){
+            const cx = px+dx;
+            if(cx-half < 0 || cx+half >= trackW) continue;
+            const diff = templateDiffAt(colorData, trackW, trackH, cx, cy, template, templateSize);
+            if(diff < bestDiff){ bestDiff = diff; bestX = cx; bestY = cy; }
           }
         }
 
-        if(matchedBlob){
-          const newVel = {x: matchedBlob.x - lastTrackPt.x, y: matchedBlob.y - lastTrackPt.y};
+        const matchThreshold = 15 + (Number(sensSlider.value)/100)*45;
+        const matched = bestDiff <= matchThreshold;
+        lastMatchWasConfirmed = matched;
+
+        if(matched){
+          const newVel = {x: bestX - lastTrackPt.x, y: bestY - lastTrackPt.y};
           trackVel = {x: trackVel.x*0.4 + newVel.x*0.6, y: trackVel.y*0.4 + newVel.y*0.6};
-          lastTrackPt = {x:matchedBlob.x, y:matchedBlob.y};
+          lastTrackPt = {x:bestX, y:bestY};
           lostFrames = 0;
           const scaleX = stage.width/trackW, scaleY = stage.height/trackH;
-          const fx = matchedBlob.x*scaleX, fy = matchedBlob.y*scaleY;
+          const fx = bestX*scaleX, fy = bestY*scaleY;
           const alpha = 0.5; // exponential smoothing factor
           smoothPt = {
             x: smoothPt.x + (fx-smoothPt.x)*alpha,
             y: smoothPt.y + (fy-smoothPt.y)*alpha
           };
           points.push({x:smoothPt.x, y:smoothPt.y, t:performance.now()});
-          if(!colorLocked) sampleColorAt(Math.round(matchedBlob.x), Math.round(matchedBlob.y));
+          if(!colorLocked) sampleColorAt(colorData, bestX, bestY);
+
+          // Slowly drift the template toward the current appearance so rotation/
+          // lighting changes don't break the lock, without letting it wander onto
+          // the background.
+          const freshPatch = sampleTemplate(colorData, trackW, trackH, bestX, bestY, templateSize);
+          const tAlpha = 0.12;
+          for(let i=0; i<template.length; i++){
+            template[i] = template[i]*(1-tAlpha) + freshPatch[i]*tAlpha;
+          }
         } else {
-          // No confirmed detection this frame: coast forward on the predicted
+          // No confident match this frame: coast forward on the predicted
           // position (don't add a trail point, just keep the search gate on-track)
           // and decay velocity a little so we don't run away if it's really gone.
           lastTrackPt = predicted;
@@ -522,12 +506,35 @@
         }
       }
 
-      // swap gray buffers
-      const tmp = grayPrev; grayPrev = grayCurr; grayCurr = tmp || new Uint8ClampedArray(trackW*trackH);
-
       drawTrail();
+      if(tracking && lastTrackPt){
+        drawLockBox(lastTrackPt, lastMatchWasConfirmed);
+      }
     }
     requestAnimationFrame(loop);
+  }
+
+  // Draws the semi-transparent square "lock" box over whatever the tracker is
+  // currently matched to, so you can see exactly what it's following.
+  function drawLockBox(trackPt, confirmed){
+    const scaleX = stage.width/trackW, scaleY = stage.height/trackH;
+    const cx = trackPt.x*scaleX, cy = trackPt.y*scaleY;
+    const half = Math.max(20, templateSize*2.2*scaleX);
+    ctx.save();
+    ctx.setLineDash(confirmed ? [] : [8,6]);
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = confirmed ? 'rgba(61,218,255,0.95)' : 'rgba(255,122,61,0.9)';
+    ctx.fillStyle = confirmed ? 'rgba(61,218,255,0.14)' : 'rgba(255,122,61,0.10)';
+    ctx.fillRect(cx-half, cy-half, half*2, half*2);
+    ctx.strokeRect(cx-half, cy-half, half*2, half*2);
+    // corner ticks, like a camera subject-lock indicator
+    const tick = half*0.35;
+    ctx.beginPath();
+    [[cx-half,cy-half,1,1],[cx+half,cy-half,-1,1],[cx-half,cy+half,1,-1],[cx+half,cy+half,-1,-1]].forEach(([x,y,sx,sy])=>{
+      ctx.moveTo(x, y+tick*sy); ctx.lineTo(x, y); ctx.lineTo(x+tick*sx, y);
+    });
+    ctx.stroke();
+    ctx.restore();
   }
 
   // Smooth freehand-style line through recorded points (midpoint quadratic technique)
@@ -541,8 +548,8 @@
     const now = performance.now();
     const FADE_MS = 3500;
 
-    ctx.lineJoin = 'round';
-    ctx.lineCap = 'round';
+    ctx.lineJoin = 'miter';
+    ctx.lineCap = 'square';
     ctx.strokeStyle = baseColor;
     ctx.lineWidth = thickness;
 
